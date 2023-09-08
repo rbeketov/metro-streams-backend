@@ -1,0 +1,11 @@
+{% extends "types_modeling.html" %}
+
+{% block content %}
+    <h2>{{ modeling.type }}</h2>
+    <p>{{ modeling.description }}</p>
+
+    <!-- Дополнительная информация о моделировании, если необходимо -->
+    <!-- Например, дополнительные детали, графики, документы, и т.д. -->
+
+    <a href="{% url 'type_modeling' %}">Вернуться к услугам</a>
+{% endblock %}
