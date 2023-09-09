@@ -16,10 +16,11 @@ import logging
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-STATIC_URL = './static/'
+APP_NAME = 'metro_streams/'
+STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [
-    BASE_DIR / STATIC_URL,
+    BASE_DIR / APP_NAME / STATIC_URL,
 ]
 
 # Quick-start development settings - unsuitable for production
