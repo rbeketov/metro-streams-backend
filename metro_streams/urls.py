@@ -20,6 +20,7 @@ from metro_streams import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', views.GetTypesAnalysisPage, name='type_modeling'),
-    path('modeling/<int:id>/', views.GetModelingDetailedPage, name='modeling_detail'),
+
+    path('modeling/<int:id>', views.GetModelingDetailedPage, name='modeling_detail'),
+    path('search/', views.SearchModeling, name='search_modeling'),
 ]

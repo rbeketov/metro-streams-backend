@@ -1,112 +1,247 @@
-.bd-placeholder-img {
-  font-size: 1.125rem;
-  text-anchor: middle;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  user-select: none;
-}
-
-@media (min-width: 768px) {
-  .bd-placeholder-img-lg {
-    font-size: 3.5rem;
-  }
-}
-
-.b-example-divider {
-  width: 100%;
-  height: 3rem;
-  background-color: rgba(229, 58, 58, 0.1);
-  border: solid rgba(240, 28, 28, 0.15);
-  border-width: 1px 0;
-  box-shadow: inset 0 .5em 1.5em rgba(236, 59, 59, 0.1), inset 0 .125em .5em rgba(224, 38, 38, 0.15);
-}
-
-.b-example-vr {
-  flex-shrink: 0;
-  width: 1.5rem;
-  height: 100vh;
-}
-
-.bi {
-  vertical-align: -.125em;
-  fill: currentColor;
-}
-
-.nav-scroller {
-  position: relative;
-  z-index: 2;
-  height: 2.75rem;
-  overflow-y: hidden;
-}
-
-.nav-scroller .nav {
-  display: flex;
-  flex-wrap: nowrap;
-  padding-bottom: 1rem;
-  margin-top: -1px;
-  overflow-x: auto;
-  text-align: center;
-  white-space: nowrap;
-  -webkit-overflow-scrolling: touch;
-}
-
-.btn-bd-primary {
-  --bd-violet-bg: #712cf9;
-  --bd-violet-rgb: 112.520718, 44.062154, 249.437846;
-
-  --bs-btn-font-weight: 600;
-  --bs-btn-color: var(--bs-white);
-  --bs-btn-bg: var(--bd-violet-bg);
-  --bs-btn-border-color: var(--bd-violet-bg);
-  --bs-btn-hover-color: var(--bs-white);
-  --bs-btn-hover-bg: #6528e0;
-  --bs-btn-hover-border-color: #6528e0;
-  --bs-btn-focus-shadow-rgb: var(--bd-violet-rgb);
-  --bs-btn-active-color: var(--bs-btn-hover-color);
-  --bs-btn-active-bg: #5a23c8;
-  --bs-btn-active-border-color: #5a23c8;
-}
-.bd-mode-toggle {
-  z-index: 1500;
-}
-
 .background-image {
   background-image: url(../images/cloud_splash.jpg);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  color: rgb(255, 255, 255); /* Цвет текста, чтобы он был виден на фоне */
-  padding: 40px; /* Добавьте отступ для текста, чтобы он был читаемым */
+  color: rgb(255, 255, 255);
+  padding: 40px;
 }
 
-  h1 {
-    font-size: 42px;
-    font-family: 'Roboto', sans-serif;
-
-  }
-
-  .main-description-text {
-    color: #0a95db; /* Замените #your-text-color на ваш желаемый цвет текста */
-    font-family: 'Roboto', sans-serif; /* Замените 'Your-Font-Family' на выбранный вами шрифт */
-    font-size: 18px;
-    /* Другие стили, если необходимо */
+h1 {
+  font-size: 40px;
+  font-family: 'Roboto', sans-serif;
 }
 
-  .bg-navbar-primary {
-    background-color: #0a5baf;
-  }
-
-  .main-link-button {
-    border-color: #0a5baf;
-    color: #0a95db;
+.main-description-text {
+  color: #0a95db;
+  font-family: 'Roboto', sans-serif;
+  font-size: 18px;
 }
 
-  .main-link-button:hover {
-      background-color: #0a5baf;
-      
-      color: #f9f9f9;
-  }
+.bg-navbar-primary {
+  background-color: #0a5baf;
+}
 
+.main-link-button {
+  border-color: #0a5baf;
+  color: #0a95db;
+}
 
+.main-link-button:hover {
+  background-color: #0a5baf;
+  color: #f9f9f9;
+}
 
+.custom-card {
+  background-color: #0d92cc;
+  border: none;
+  border-radius: 30px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: transform 0.3s ease-in-out;
+  margin-bottom: 20px;
+  width: 27vw;
+  height: 27vw;
+}
 
+.custom-card-img {
+  width: 100%;
+  height: 80%;
+  margin: 0 auto;
+  border-top-left-radius: 30px;
+  border-top-right-radius: 30px;
+}
+
+.custom-card-body {
+  padding: 20px;
+}
+
+.custom-card-text {
+  font-family: 'Roboto', sans-serif;
+  font-size: 1.4vw;
+  font-weight: bold;
+  color: white;
+}
+
+.custom-card:hover {
+  transform: translateY(-8px);
+}
+
+.card-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.model-card {
+  display: flex;
+
+  justify-content: center;
+  text-align: center;
+  height: 100vh;
+  padding: 2% 12%;
+}
+
+.model-card-image {
+  max-width: 80%;
+  
+}
+
+.model-card-description {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.model-card-description p {
+  font-family: 'Roboto', sans-serif;
+  font-size: 16px;
+}
+
+.model-detail-card {
+  border-radius: 20px;
+  box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.7);
+}
+
+.model-card-image img {
+  max-width: 100%;
+  height: auto;
+}
+
+.model-card-description {
+  flex: 2;
+  padding: 20px;
+}
+
+.model-card-description h2 {
+  font-size: 32px;
+  font-family: 'Roboto', sans-serif;
+  font-weight: bold;
+}
+
+.model-card-description p {
+  font-size: 16px;
+}
+
+.model-card-description a {
+  display: inline-block;
+  margin-top: 20px;
+}
+
+.bg-cards {
+  background-color: #e8eef9;
+}
+
+.background-image-under {
+  background-image: url(../images/under-cloud.jpeg);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: rgb(255, 255, 255);
+  padding: 120px;
+}
+
+footer {
+  margin-top: auto;
+  background-color: #0a5baf;
+  color: white;
+  padding: 10px;
+}
+
+.contact-button {
+  border-color: #cae4ff;
+  color: #cae4ff;
+  padding: 5px 12px;
+  font-size: 17px;
+}
+
+.contact-button:hover {
+  background-color: #cae4ff;
+  color: #0a5baf;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.card-text {
+  font-family: 'Roboto', sans-serif;
+  font-size: 18px;
+  font-weight: bold;
+  color: white;
+}
+
+.main-page-form {
+  width: 80%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 20px 0;
+}
+
+.main-page-form input[type="text"] {
+  flex: 1;
+  font-family: 'Roboto', sans-serif;
+  margin-right: 10px;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.main-page-form button {
+  background-color: #1571d3;
+  color: #f6f6f6;
+  border: #0a5baf;
+  font-family: 'Roboto', sans-serif;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 18px;
+  cursor: pointer;
+  
+}
+
+.main-page-form button:hover {
+  background-color:#9cc3ed;
+  color: #1571d3;
+  transform: translateY(-1.8px);
+  box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.2);
+}
+
+.btn-back-to-models {
+  background-color: #1571d3;
+  color: #ffffff;
+  padding: 5px 12px;
+  font-family: 'Roboto', sans-serif;
+  font-size: 17px;
+  text-decoration: none;
+  border-radius: 12px;
+}
+
+.btn-back-to-models:hover {
+  background-color:#9cc3ed;
+  color: #1571d3;
+}
+
+.card-href {
+  text-decoration: none;
+}
+
+.btns-log {
+  color: #ffffff;
+  padding: 5px 12px;
+  font-family: 'Roboto', sans-serif;
+  font-size: 17px;
+  text-decoration: none;
+  font-weight : inherit;
+  margin-right: 10px;
+}
+
+.btns-log:hover {
+  background-color:#ffffff;
+  border-radius: 13px;
+  color: #1571d3;
+  transform: translateY(-1.5px);
+  box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.1);
+}

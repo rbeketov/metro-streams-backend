@@ -1,11 +1,18 @@
 {% extends "types_modeling.html" %}
 
+
 {% block content %}
-    <h2>{{ modeling.type }}</h2>
-    <p>{{ modeling.description }}</p>
-
-    <!-- Дополнительная информация о моделировании, если необходимо -->
-    <!-- Например, дополнительные детали, графики, документы, и т.д. -->
-
-    <a href="{% url 'type_modeling' %}">Вернуться к услугам</a>
+{% load static %}
+    <div class="model-card">
+        <div class="model-card-image">
+            <img src="{% static modeling.image_url %}" alt="{{ modeling.type }}" class="model-detail-card">
+        </div>
+        <div class="model-card-description">
+            <h2>{{ modeling.type }}</h2>
+            <p>{{ modeling.description }}</p>
+            <a class="btn-back-to-models" href="{% url 'search_modeling' %}">Вернуться к услугам</a>
+        </div>
+    </div>
 {% endblock %}
+
+
