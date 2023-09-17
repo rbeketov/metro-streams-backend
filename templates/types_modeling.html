@@ -54,11 +54,11 @@
       <div class="row">
         {% for model in init_data.modeling %}
         <div class="col-sm-4 mb-3">
-          <a class="card-href" href="{% url 'modeling_detail' model.id %}">
+          <a class="card-href" href="{% url 'modeling_detail' model.modeling_id %}">
             <div class="custom-card">
-              <img src="{% static model.image_url %}" alt="{{ model.type }}" class="custom-card-img">
+              <img src="{% static model.modeling_image_url %}" alt="{{ model.modeling_name }}" class="custom-card-img">
               <div class="custom-card-body">
-                <p class="custom-card-text text-center">{{ model.type }}</p>
+                <p class="custom-card-text text-center">{{ model.modeling_name }}</p>
               </div>
             </div>
           </a>

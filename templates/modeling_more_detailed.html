@@ -5,11 +5,11 @@
 {% load static %}
     <div class="model-card">
         <div class="model-card-image">
-            <img src="{% static modeling.image_url %}" alt="{{ modeling.type }}" class="model-detail-card">
+            <img src="{% static modeling.modeling_image_url %}" alt="{{ modeling.modeling_name }}" class="model-detail-card">
         </div>
         <div class="model-card-description">
-            <h2>{{ modeling.type }}</h2>
-            <p>{{ modeling.description }}</p>
+            <h2>{{ modeling.modeling_name }}</h2>
+            <p>{{ modeling.modeling_description }}</p>
             <a class="btn-back-to-models" href="{% url 'search_modeling' %}">Вернуться к услугам</a>
         </div>
     </div>
