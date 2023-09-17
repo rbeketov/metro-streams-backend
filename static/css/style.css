@@ -33,6 +33,7 @@ h1 {
 }
 
 .custom-card {
+  position: relative;
   background-color: #0d92cc;
   border: none;
   border-radius: 30px;
@@ -49,6 +50,21 @@ h1 {
   margin: 0 auto;
   border-top-left-radius: 30px;
   border-top-right-radius: 30px;
+}
+
+.delete-button {
+  position: absolute;
+  top: 5px;
+  right: 17px;
+  text-decoration: none;
+  font-size: 16px;
+  cursor: default;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.delete-button:hover {
+  opacity: 1;
 }
 
 .custom-card-body {

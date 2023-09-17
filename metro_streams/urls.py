@@ -21,6 +21,8 @@ from app import views
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    path('modeling/<int:id>', views.GetModelingDetailedPage, name='modeling_detail'),
-    path('search/', views.SearchModeling, name='search_modeling'),
+    path('modeling/<int:id>', views.get_modeling_detailed_page, name='modeling_detail'),
+    path('search/', views.search_modeling, name='search_modeling'),
+
+    path('update/<int:id>', views.update_modeling_list_page, name='update_modeling_list_page')
 ]
