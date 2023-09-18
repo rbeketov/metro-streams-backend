@@ -65,5 +65,6 @@ def SearchModeling(request):
                 search_results['modeling'].append(item)
     
     else:
+        query = ''
         search_results = data_modeling
-    return render(request, 'types_modeling.html', {'init_data' : search_results } )
+    return render(request, 'types_modeling.html', {'init_data' : search_results , 'search_value': query} )

@@ -42,7 +42,7 @@
 
   <div class="bg-cards">
     <form action="{% url 'search_modeling' %}" method="get" class="main-page-form">
-      <input type="text" name="q" placeholder="Я хочу найти...">
+      <input type="text" name="q" placeholder="Я хочу найти..." value="{{search_value}}">
       <button type="submit">Найти</button>
     </form>
   </div>
