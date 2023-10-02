@@ -1,12 +1,13 @@
 from django.db import models
 
-
 class ApplicationsForModeling(models.Model):
     application_id = models.AutoField(primary_key=True)
     user = models.ForeignKey('Users', models.DO_NOTHING, blank=True, null=True)
+    moderator = models.ForeignKey('Users', models.DO_NOTHING, related_name='applicationsformodeling_moderator_set', blank=True, null=True)
     date_application_create = models.DateField()
     date_application_accept = models.DateField(blank=True, null=True)
     date_application_complete = models.DateField(blank=True, null=True)
+    metro_name = models.CharField(max_length=20, blank=True, null=True)
     status_application = models.CharField(blank=True, null=True)
 
     class Meta:
