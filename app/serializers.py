@@ -47,6 +47,5 @@ class TypesOfModelingSerializer(serializers.ModelSerializer):
             'modeling_name',
             'modeling_description',
             'modeling_price',
-            'modeling_image_url',
-            'modeling_status',
+            'modeling_image_url'
         ]

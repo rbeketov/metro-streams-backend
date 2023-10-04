@@ -15,14 +15,25 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
 from app import views
+from django.urls import include, path
+from rest_framework import routers
+
+router = routers.DefaultRouter()
 
 urlpatterns = [
+    path('', include(router.urls)),
+    
+    path(r'modeling/', views.search_modeling, name='search_modeling'),
+    path(r'modeling/<int:pk>/', views.get_type_modeling, name='modeling_detail'),
+    path(r'modeling/<int:pk>/delete/', views.del_type_modeling, name='delete_type_modeling'),
+    path(r'modeling/<int:pk>/recover/', views.recover_type_modeling, name='recover_type_modeling'),
+    path(r'modeling/<int:pk>/edit/', views.edit_type_modeling , name='edit_type_modeling'),
+    path(r'modeling/create/', views.create_type_modeling , name='create_type_modeling'),
+
+    path(r'application/<int:pk>/', views.get_application, name='get_application_on_id'),
+    path(r'application/create/', views.create_applications, name='create_application'),
+
+    path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('admin/', admin.site.urls),
-
-    path('modeling/<int:id>', views.get_modeling_detailed_page, name='modeling_detail'),
-    path('search/', views.search_modeling, name='search_modeling'),
-
-    path('update/<int:id>', views.update_modeling_list_page, name='update_modeling_list_page')
 ]
