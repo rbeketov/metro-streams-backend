@@ -1,6 +1,7 @@
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from drf_yasg.utils import swagger_auto_schema
 
 from app.serializers import TypesOfModelingSerializer
 from app.serializers import ModelingApplicationsSerializer
@@ -13,6 +14,7 @@ from app.models import ApplicationsForModeling
 from app.models import Users
 
 from rest_framework.decorators import api_view
+from rest_framework.decorators import action
 
 from django.http import HttpRequest
 from django.utils import timezone
@@ -21,15 +23,25 @@ from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.db.models import Q, F, Value
 from django.db.models.functions import Coalesce
-
+from drf_yasg import openapi
 import datetime
 
 # Domain Users
     # in process
 
 # Domain ApplicationsForModeling
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter('name', openapi.IN_QUERY, description="Name of the application", type=openapi.TYPE_STRING),
+        openapi.Parameter('user', openapi.IN_QUERY, description="User ID", type=openapi.TYPE_INTEGER),
+        openapi.Parameter('moderator', openapi.IN_QUERY, description="Moderator ID", type=openapi.TYPE_INTEGER),
+        openapi.Parameter('date_start', openapi.IN_QUERY, description="Start date for filtering", type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE),
+        openapi.Parameter('date_end', openapi.IN_QUERY, description="End date for filtering", type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE),
+    ]
+)
 @api_view(['GET'])
-def search_applications(request, format=None): # add search param))
+def search_applications(request, format=None):
     query = request.GET.get('name')
     user = request.GET.get('user')
     moderator = request.GET.get('moderator')
@@ -76,7 +88,6 @@ def search_applications(request, format=None): # add search param))
     else:
         applications = ApplicationsForModeling.objects.all()
 
-
     if date_start and date_end:
         applications = applications.filter(
             Q(date_application_create__gte=date_start) &
@@ -102,6 +113,27 @@ def search_applications(request, format=None): # add search param))
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'application_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+            'user_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+            'metro_name': openapi.Schema(type=openapi.TYPE_STRING),
+            'modeling_id': openapi.Schema(
+                type=openapi.TYPE_ARRAY,
+                items=openapi.Items(type=openapi.TYPE_INTEGER),
+            ),
+        },
+        required=['user_id', 'metro_name', 'modeling_id'],
+    ),
+    responses={
+        201: "Successfully added modeling to the application",
+        400: "Bad Request",
+    },
+    operation_description="Add modeling to an application",
+)
 @api_view(['POST'])
 def add_modeling_to_applications(request, format=None):
     try:
@@ -167,6 +199,14 @@ def add_modeling_to_applications(request, format=None):
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+@swagger_auto_schema(
+    method='get',
+    responses={
+        200: "Success",
+        404: "Not Found",
+    },
+    operation_description="Get application details",
+)
 @api_view(['GET'])
 def get_application(request, pk, format=None):
     try:
@@ -235,6 +275,23 @@ def get_application(request, pk, format=None):
     except ApplicationsForModeling.DoesNotExist:
         return Response({"error": "Application does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
+
+@swagger_auto_schema(
+    method='put',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'moderator_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+        },
+        required=['moderator_id'],
+    ),
+    responses={
+        200: "Success",
+        400: "Bad Request",
+        404: "Not Found",
+    },
+    operation_description="Take an application",
+)
 @api_view(['PUT'])
 def take_application(request, pk, format=None):
     try:
@@ -262,6 +319,26 @@ def take_application(request, pk, format=None):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
+@swagger_auto_schema(
+    method='put',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'status': openapi.Schema(
+                type=openapi.TYPE_STRING,
+                enum=['DELE', 'INTR', 'INPR', 'COMP', 'CANC'],
+            ),
+        },
+        required=['status'],
+    ),
+    responses={
+        200: "Success",
+        400: "Bad Request",
+        404: "Not Found",
+    },
+    operation_description="Edit the status of an application",
+)
 @api_view(['PUT'])
 def edit_application(request, pk, format=None):
     try:
@@ -308,8 +385,67 @@ def edit_application(request, pk, format=None):
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+@swagger_auto_schema(
+    method='delete',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'modeling_id': openapi.Schema(
+                type=openapi.TYPE_INTEGER,
+                description="ID of the modeling to remove from the application",
+            ),
+        },
+        required=['modeling_id'],
+    ),
+    responses={
+        200: "Success",
+        404: "Not Found",
+    },
+    operation_description="Remove modeling from an application",
+)
+@api_view(['DELETE'])
+def del_modeling_from_application(request, pk, format=None):
+    try:
+        application = ApplicationsForModeling.objects.get(pk=pk)
+        modeling_id = request.data.get('modeling_id')
+
+        modeling_application = ModelingApplications.objects.filter(
+            application=application, modeling_id=modeling_id).first()
+
+        if modeling_application:
+            modeling_application.delete()
+            request_for_get_application = HttpRequest()
+            request_for_get_application.method = 'GET'
+            response = get_application(request_for_get_application, pk)
+            return Response(response.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Modeling not found in the application"}, status=status.HTTP_404_NOT_FOUND)
+    except ApplicationsForModeling.DoesNotExist:
+        return Response({"error": "Application does not exist"}, status=status.HTTP_404_NOT_FOUND)
+
 
 # Domain TypeOfModeling
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter(
+            'name',
+            in_=openapi.IN_QUERY,
+            type=openapi.TYPE_STRING,
+            description="Filter modeling objects by name (case-insensitive)",
+        ),
+        openapi.Parameter(
+            'price',
+            in_=openapi.IN_QUERY,
+            type=openapi.TYPE_STRING,
+            description="Sort modeling objects by price (asc or desc)",
+        ),
+    ],
+    responses={
+        200: "Success",
+    },
+    operation_description="Search for modeling objects with optional name filter and price sorting",
+)
 @api_view(['GET'])
 def search_modeling(request, format=None): # add check_authorization
     query_name = request.GET.get('name')
@@ -329,7 +465,14 @@ def search_modeling(request, format=None): # add check_authorization
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-
+@swagger_auto_schema(
+    method='get',
+    responses={
+        200: "Success",
+        404: "Not Found",
+    },
+    operation_description="Get information about a modeling object by ID",
+)
 @api_view(['GET'])
 def get_type_modeling(request, pk, format=None):
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
@@ -337,6 +480,14 @@ def get_type_modeling(request, pk, format=None):
     return Response(serializer.data)
 
 
+@swagger_auto_schema(
+    method='delete',
+    responses={
+        200: "Success",
+        404: "Not Found",
+    },
+    operation_description="Delete a modeling object by ID",
+)
 @api_view(['DELETE'])
 def del_type_modeling(request, pk, format=None):
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
@@ -345,6 +496,14 @@ def del_type_modeling(request, pk, format=None):
     return Response(status=status.HTTP_200_OK)
 
 
+@swagger_auto_schema(
+    method='put',
+    responses={
+        200: "Success",
+        404: "Not Found",
+    },
+    operation_description="Recover a modeling object by ID",
+)
 @api_view(['PUT'])
 def recover_type_modeling(request, pk, format=None):
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
@@ -353,6 +512,23 @@ def recover_type_modeling(request, pk, format=None):
     return Response(status=status.HTTP_200_OK)
 
 
+@swagger_auto_schema(
+    method='put',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'modeling_name': openapi.Schema(type=openapi.TYPE_STRING, description="The new modeling name"),
+            'modeling_description': openapi.Schema(type=openapi.TYPE_STRING, description="The new modeling description"),
+            'modeling_price': openapi.Schema(type=openapi.TYPE_NUMBER, description="The new modeling price"),
+            'modeling_image_url': openapi.Schema(type=openapi.TYPE_STRING, description="The new modeling image URL"),
+        },
+    ),
+    responses={
+        200: "Success",
+        400: "Bad Request",
+    },
+    operation_description="Edit modeling object by ID",
+)
 @api_view(['PUT'])
 def edit_type_modeling(request, pk, format=None):
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
@@ -375,6 +551,24 @@ def edit_type_modeling(request, pk, format=None):
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'modeling_name': openapi.Schema(type=openapi.TYPE_STRING, description="The name of the modeling"),
+            'modeling_description': openapi.Schema(type=openapi.TYPE_STRING, description="The description of the modeling"),
+            'modeling_price': openapi.Schema(type=openapi.TYPE_NUMBER, description="The price of the modeling"),
+            'modeling_image_url': openapi.Schema(type=openapi.TYPE_STRING, description="The URL of the modeling image"),
+        },
+        required=['modeling_name', 'modeling_price'],
+    ),
+    responses={
+        201: "Successfully created modeling object",
+        400: "Bad Request",
+    },
+    operation_description="Create a new modeling object",
+)
 @api_view(['POST'])
 def create_type_modeling(request, format=None):
     try:

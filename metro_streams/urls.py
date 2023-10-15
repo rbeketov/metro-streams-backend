@@ -16,10 +16,26 @@ Including another URLconf
 """
 from django.contrib import admin
 from app import views
-from django.urls import include, path
-from rest_framework import routers
+from django.urls import include, path, re_path
+from rest_framework import routers, permissions
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
 
 router = routers.DefaultRouter()
+
+
+schema_view = get_schema_view(
+    openapi.Info(
+        title="MetroStreams API",
+        default_version='v1',
+        description="MetroStreams",
+        terms_of_service="https://www.yourapp.com/terms/",
+        contact=openapi.Contact(email="contact@yourapp.com"),
+        license=openapi.License(name="Your License"),
+    ),
+    public=True,
+    permission_classes=(permissions.AllowAny,),
+)
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -40,4 +56,6 @@ urlpatterns = [
 
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('admin/', admin.site.urls),
+    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
 ]
