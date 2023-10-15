@@ -269,44 +269,44 @@ def edit_application(request, pk, format=None):
         application = ApplicationsForModeling.objects.get(pk=pk)
 
         if 'status' in data:
-            stat = data['status']
+            new_status = data['status']
         else:
             return Response({"error": "Status is missing in the request data"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if application.status_application != stat:
-            application.status_application = stat
+        if new_status not in ['DELE', 'INTR', 'INPR', 'COMP', 'CANC']:
+            return Response({"error": "Invalid status provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_transitions = {
+            'DELE': [],
+            'INTR': ['INPR'],
+            'INPR': ['COMP', 'CANC'],
+            'COMP': ['DELE'],
+            'CANC': ['DELE'],
+        }
+
+        current_status = application.status_application
+
+        if new_status not in valid_transitions.get(current_status, []):
+            return Response(
+                {"error": f"Invalid status transition from {current_status} to {new_status}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if application.status_application != new_status:
+            application.status_application = new_status
             application.save()
             request_for_get_application = HttpRequest()
             request_for_get_application.method = 'GET'
             response = get_application(request_for_get_application, pk)
             return Response(response.data, status=status.HTTP_200_OK)
         else:
-            return Response({"error": f"Application {pk} is already {stat}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": f"Application {pk} is already {new_status}"}, status=status.HTTP_400_BAD_REQUEST)
 
     except ApplicationsForModeling.DoesNotExist:
         return Response({"error": "Application does not exist"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['DELETE'])
-def del_modeling_from_application(request, pk, format=None):
-    try:
-        application = ApplicationsForModeling.objects.get(pk=pk)
-        modeling_id = request.data.get('modeling_id')
-
-        modeling_application = ModelingApplications.objects.filter(
-            application=application, modeling_id=modeling_id).first()
-
-        if modeling_application:
-            modeling_application.delete()
-            request_for_get_application = HttpRequest()
-            request_for_get_application.method = 'GET'
-            response = get_application(request_for_get_application, pk)
-            return Response(response.data, status=status.HTTP_200_OK)
-        else:
-            return Response({"error": "Modeling not found in the application"}, status=status.HTTP_404_NOT_FOUND)
-    except ApplicationsForModeling.DoesNotExist:
-        return Response({"error": "Application does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
 
 # Domain TypeOfModeling
