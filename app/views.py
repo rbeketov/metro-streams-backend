@@ -22,6 +22,7 @@ from django.urls import reverse
 from django.db.models import Q, F, Value
 from django.db.models.functions import Coalesce
 
+import datetime
 
 # Domain Users
     # in process
@@ -29,13 +30,66 @@ from django.db.models.functions import Coalesce
 # Domain ApplicationsForModeling
 @api_view(['GET'])
 def search_applications(request, format=None): # add search param))
-    query = request.GET.get('q')
-    if query:
+    query = request.GET.get('name')
+    user = request.GET.get('user')
+    moderator = request.GET.get('moderator')
+    date_start = request.GET.get('date_start')
+    date_end = request.GET.get('date_end')
+
+    if date_start and date_end:
+        date_start = datetime.strptime(date_start, "%Y-%m-%d")
+        date_end = datetime.strptime(date_end, "%Y-%m-%d")
+
+    if query and user and moderator:
         applications = ApplicationsForModeling.objects.filter(
-            Q(metro_name__icontains=query.lower()))
+            Q(metro_name__icontains=query.lower()) &
+            Q(user_id=user) &
+            Q(moderator_id=moderator)
+        )
+    elif query and user:
+        applications = ApplicationsForModeling.objects.filter(
+            Q(metro_name__icontains=query.lower()) &
+            Q(user_id=user)
+        )
+    elif query and moderator:
+        applications = ApplicationsForModeling.objects.filter(
+            Q(metro_name__icontains=query.lower()) &
+            Q(moderator_id=moderator)
+        )
+    elif user and moderator:
+        applications = ApplicationsForModeling.objects.filter(
+            Q(user_id=user) &
+            Q(moderator_id=moderator)
+        )
+    elif user:
+        applications = ApplicationsForModeling.objects.filter(
+            Q(user_id=user)
+        )
+    elif moderator:
+        applications = ApplicationsForModeling.objects.filter(
+            Q(moderator_id=moderator)
+        )
+    elif query:
+        applications = ApplicationsForModeling.objects.filter(
+            Q(metro_name__icontains=query.lower())
+        )
     else:
-        query = ''
         applications = ApplicationsForModeling.objects.all()
+
+
+    if date_start and date_end:
+        applications = applications.filter(
+            Q(date_application_create__gte=date_start) &
+            Q(date_application_create__lte=date_end)
+        )
+    elif date_start:
+        applications = applications.filter(
+            Q(date_application_create__gte=date_start)
+        )
+    elif date_end:
+        applications = applications.filter(
+            Q(date_application_create__gte=date_end)
+        )
 
     applications = applications.annotate(
         user_first_name=F('user__first_name'),
@@ -258,15 +312,22 @@ def del_modeling_from_application(request, pk, format=None):
 # Domain TypeOfModeling
 @api_view(['GET'])
 def search_modeling(request, format=None): # add check_authorization
-    query = request.GET.get('q')
-    if query:
-        modeling_objects = TypesOfModeling.objects.filter(Q(modeling_name__icontains=query.lower()), modeling_status="WORK")
+    query_name = request.GET.get('name')
+    sort_by_price = request.GET.get('price')
+
+    if query_name:
+        modeling_objects = TypesOfModeling.objects.filter(Q(modeling_name__icontains=query_name.lower()))
     else:
-        query = ''
         modeling_objects = TypesOfModeling.objects.filter(modeling_status="WORK")
+
+    if sort_by_price == 'asc':
+        modeling_objects = modeling_objects.order_by('modeling_price')
+    elif sort_by_price == 'desc':
+        modeling_objects = modeling_objects.order_by('-modeling_price')
 
     serializer = TypesOfModelingSerializer(modeling_objects, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 
 @api_view(['GET'])

@@ -30,7 +30,7 @@ class TypesOfModeling(models.Model):
     modeling_name = models.CharField(max_length=30)
     modeling_description = models.CharField(max_length=1000)
     modeling_price = models.DecimalField(max_digits=30, decimal_places=2)
-    modeling_image_url = models.CharField(max_length=40)
+    modeling_image_url = models.CharField(max_length=100)
     modeling_status = models.CharField(blank=True, null=True)
 
     class Meta:

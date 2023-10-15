@@ -103,11 +103,11 @@ WSGI_APPLICATION = 'metro_streams.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'metro_streams',
+        'NAME': 'metrostreams',
         'USER': 'rbeketov',
         'PASSWORD': '12345',
         'HOST': 'localhost',
-        'PORT': '5432',
+        'PORT': '5436',
     }
 }
 
