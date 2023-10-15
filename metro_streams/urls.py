@@ -24,15 +24,19 @@ router = routers.DefaultRouter()
 urlpatterns = [
     path('', include(router.urls)),
     
-    path(r'modeling/', views.search_modeling, name='search_modeling'),
-    path(r'modeling/<int:pk>/', views.get_type_modeling, name='modeling_detail'),
-    path(r'modeling/<int:pk>/delete/', views.del_type_modeling, name='delete_type_modeling'),
-    path(r'modeling/<int:pk>/recover/', views.recover_type_modeling, name='recover_type_modeling'),
-    path(r'modeling/<int:pk>/edit/', views.edit_type_modeling , name='edit_type_modeling'),
-    path(r'modeling/create/', views.create_type_modeling , name='create_type_modeling'),
+    path(r'modelings/', views.search_modeling, name='search_modeling'),
+    path(r'modelings/<int:pk>/', views.get_type_modeling, name='modeling_detail'),
+    path(r'modelings/<int:pk>/delete/', views.del_type_modeling, name='delete_type_modeling'),
+    path(r'modelings/<int:pk>/recover/', views.recover_type_modeling, name='recover_type_modeling'),
+    path(r'modelings/<int:pk>/edit/', views.edit_type_modeling , name='edit_type_modeling'),
+    path(r'modelings/create/', views.create_type_modeling , name='create_type_modeling'),
 
-    path(r'application/<int:pk>/', views.get_application, name='get_application_on_id'),
-    path(r'application/create/', views.create_applications, name='create_application'),
+    path(r'applications/', views.search_applications, name='search_applications'),
+    path(r'applications/<int:pk>/', views.get_application, name='get_application_on_id'),
+    path(r'applications/create/', views.add_modeling_to_applications, name='add_modeling_to_applications'),
+    path(r'applications/<int:pk>/take/', views.take_application, name='take_application'),
+    path(r'applications/<int:pk>/edit/', views.edit_application, name='edit_application'),
+    path(r'applications/<int:pk>/delete_modeling/', views.del_modeling_from_application, name='del_modeling_from_application'),
 
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('admin/', admin.site.urls),

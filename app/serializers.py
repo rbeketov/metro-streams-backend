@@ -4,19 +4,17 @@ from app.models import ModelingApplications
 from app.models import Users
 from app.models import TypesOfModeling
 
+
 class ApplicationsForModelingSerializer(serializers.ModelSerializer):
+    user_first_name = serializers.CharField(source='user.first_name')
+    user_second_name = serializers.CharField(source='user.second_name')
+    moderator_first_name = serializers.CharField(source='moderator.first_name', required=False)
+    moderator_second_name = serializers.CharField(source='moderator.second_name', required=False)
+
     class Meta:
         model = ApplicationsForModeling
-        fields = [
-            'application_id',
-            'user_id',
-            'moderator_id',
-            'date_application_create',
-            'date_application_accept',
-            'date_application_complete',
-            'metro_name',
-            'status_application',
-        ]
+        fields = '__all__'
+
 
 class ModelingApplicationsSerializer(serializers.ModelSerializer):
     class Meta:

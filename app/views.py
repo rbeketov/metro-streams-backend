@@ -14,49 +14,102 @@ from app.models import Users
 
 from rest_framework.decorators import api_view
 
+from django.http import HttpRequest
+from django.utils import timezone
 from django.db import connection
 from django.shortcuts import render, redirect
 from django.urls import reverse
-from django.db.models import Q
+from django.db.models import Q, F, Value
+from django.db.models.functions import Coalesce
 
 
 # Domain Users
     # in process
 
-
 # Domain ApplicationsForModeling
-@api_view(['Post'])
-def create_applications(request, format=None):
+@api_view(['GET'])
+def search_applications(request, format=None): # add search param))
+    query = request.GET.get('q')
+    if query:
+        applications = ApplicationsForModeling.objects.filter(
+            Q(metro_name__icontains=query.lower()))
+    else:
+        query = ''
+        applications = ApplicationsForModeling.objects.all()
+
+    applications = applications.annotate(
+        user_first_name=F('user__first_name'),
+        user_second_name=F('user__second_name'),
+        moderator_first_name=F('moderator__first_name'),
+        moderator_second_name=F('moderator__second_name'),
+    )
+ 
+    serializer = ApplicationsForModelingSerializer(applications, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def add_modeling_to_applications(request, format=None):
     try:
         data = request.data
 
-        required_fields = ['user_id', 'metro_name', 'modeling_id']
+        required_fields = ['application_id','user_id', 'metro_name', 'modeling_id']
         for field in required_fields:
             if field not in data:
                 raise KeyError(f"Field '{field}' is missing in the request data")
-        
-        # Проверьте существование пользователя
-        user = Users.objects.get(pk=data['user_id'])
 
-        application = ApplicationsForModeling(
-            user=user,
-            metro_name=data['metro_name']
-        )
-        application.save()
+        if not isinstance(data['modeling_id'], list):
+            raise TypeError("Field \'modeling_id\' must be list")
 
+        user_id = data['user_id']
         modeling_ids = data['modeling_id']
+        if data['application_id']:
+            application_id = data['application_id']
+            application = ApplicationsForModeling.objects.filter(
+                application_id=application_id,
+                user_id=user_id,
+                metro_name=data['metro_name'],
+            ).first()
+
+        if not data['application_id'] or not application:
+            user = Users.objects.get(pk=user_id)
+            application = ApplicationsForModeling.objects.create(
+                user=user,
+                metro_name=data['metro_name'],
+                date_application_create=timezone.now(),
+                status_application='INTR',
+            )
+
+        conflict_models = []
         for modeling_id in modeling_ids:
-            modeling_application = ModelingApplications(
+            modeling_application = ModelingApplications.objects.filter(
+                modeling_id=modeling_id,
+                application=application
+            ).first()
+
+            if modeling_application:
+                conflict_models.append(modeling_id)
+        
+        if conflict_models:
+            return Response(
+                {"error": f"Models with IDs {', '.join(map(str, conflict_models))} already exist in this application"},
+                status=status.HTTP_409_CONFLICT
+            )
+
+        for modeling_id in modeling_ids:
+            modeling_application = ModelingApplications.objects.create(
                 modeling_id=modeling_id,
                 application=application
             )
-            modeling_application.save()
 
-        return Response(application.id, status=status.HTTP_201_CREATED)
-    
+        request_for_search = HttpRequest()
+        request_for_search.method = 'GET'
+        search_result = search_applications(request_for_search, format)
+        return Response(search_result.data, status=status.HTTP_201_CREATED)
+
     except Users.DoesNotExist:
         return Response({"error": "User does not exist"}, status=status.HTTP_400_BAD_REQUEST)
-    except KeyError as e:
+    except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -64,6 +117,7 @@ def create_applications(request, format=None):
 def get_application(request, pk, format=None):
     try:
         applications = ApplicationsForModeling.objects.filter(application_id=pk).values(
+            'modelingapplications__modeling__modeling_id',
             'modelingapplications__modeling__modeling_name',
             'modelingapplications__modeling__modeling_description',
             'metro_name',
@@ -73,9 +127,11 @@ def get_application(request, pk, format=None):
             'status_application',
             'modelingapplications__modeling__modeling_price',
             'modelingapplications__modeling__modeling_image_url',
+            'user__user_id',
             'user__first_name',
             'user__second_name',
             'user__email',
+            'moderator__user_id',
             'moderator__first_name',
             'moderator__second_name',
             'moderator__email'
@@ -84,12 +140,14 @@ def get_application(request, pk, format=None):
         if applications:
             result = []
             user_data = {
+                    'user_id': applications[0]['user__user_id'],
                     'first_name': applications[0]['user__first_name'],
                     'second_name': applications[0]['user__second_name'],
                     'email': applications[0]['user__email']
                 }
 
             moderator_data = {
+                'moderator_id': applications[0]['moderator__user_id'],
                 'first_name': applications[0]['moderator__first_name'],
                 'second_name': applications[0]['moderator__second_name'],
                 'email': applications[0]['moderator__email']
@@ -97,6 +155,7 @@ def get_application(request, pk, format=None):
 
             for application in applications:
                 data = {
+                        'modeling_id': application['modelingapplications__modeling__modeling_id'],
                         'modeling_name': application['modelingapplications__modeling__modeling_name'],
                         'modeling_description': application['modelingapplications__modeling__modeling_description'],
                         'metro_name': application['metro_name'],
@@ -110,6 +169,7 @@ def get_application(request, pk, format=None):
                 result.append(data)
     
             response_json = {
+                'application_id': pk,
                 'user_data': user_data,
                 'moderator_data': moderator_data,
                 'modeling' : result
@@ -121,12 +181,82 @@ def get_application(request, pk, format=None):
     except ApplicationsForModeling.DoesNotExist:
         return Response({"error": "Application does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
+@api_view(['PUT'])
+def take_application(request, pk, format=None):
+    try:
+        data = request.data
+        application = ApplicationsForModeling.objects.get(pk=pk)
 
+        if 'moderator_id' in data:
+            moderator_id = data['moderator_id']
+            moderator = Users.objects.get(pk=moderator_id)
 
+            application.moderator = moderator
+            application.save()
+
+            request_for_get_application = HttpRequest()
+            request_for_get_application.method = 'GET'
+            response = get_application(request_for_get_application, pk)
+            return Response(response.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Moderator ID is missing in the request data"}, status=status.HTTP_400_BAD_REQUEST)
+
+    except ApplicationsForModeling.DoesNotExist:
+        return Response({"error": "Application does not exist"}, status=status.HTTP_404_NOT_FOUND)
+    except Users.DoesNotExist:
+        return Response({"error": "Moderator does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['PUT'])
+def edit_application(request, pk, format=None):
+    try:
+        data = request.data
+        application = ApplicationsForModeling.objects.get(pk=pk)
+
+        if 'status' in data:
+            stat = data['status']
+        else:
+            return Response({"error": "Status is missing in the request data"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if application.status_application != stat:
+            application.status_application = stat
+            application.save()
+            request_for_get_application = HttpRequest()
+            request_for_get_application.method = 'GET'
+            response = get_application(request_for_get_application, pk)
+            return Response(response.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": f"Application {pk} is already {stat}"}, status=status.HTTP_400_BAD_REQUEST)
+
+    except ApplicationsForModeling.DoesNotExist:
+        return Response({"error": "Application does not exist"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['DELETE'])
+def del_modeling_from_application(request, pk, format=None):
+    try:
+        application = ApplicationsForModeling.objects.get(pk=pk)
+        modeling_id = request.data.get('modeling_id')
+
+        modeling_application = ModelingApplications.objects.filter(
+            application=application, modeling_id=modeling_id).first()
+
+        if modeling_application:
+            modeling_application.delete()
+            request_for_get_application = HttpRequest()
+            request_for_get_application.method = 'GET'
+            response = get_application(request_for_get_application, pk)
+            return Response(response.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Modeling not found in the application"}, status=status.HTTP_404_NOT_FOUND)
+    except ApplicationsForModeling.DoesNotExist:
+        return Response({"error": "Application does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
 
 # Domain TypeOfModeling
-@api_view(['Get'])
+@api_view(['GET'])
 def search_modeling(request, format=None): # add check_authorization
     query = request.GET.get('q')
     if query:
@@ -139,15 +269,14 @@ def search_modeling(request, format=None): # add check_authorization
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-
-@api_view(['Get'])
+@api_view(['GET'])
 def get_type_modeling(request, pk, format=None):
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
     serializer = TypesOfModelingSerializer(modeling_object)
     return Response(serializer.data)
 
 
-@api_view(['Delete'])
+@api_view(['DELETE'])
 def del_type_modeling(request, pk, format=None):
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
     modeling_object.modeling_status = 'DELE'
@@ -155,7 +284,7 @@ def del_type_modeling(request, pk, format=None):
     return Response(status=status.HTTP_200_OK)
 
 
-@api_view(['Put'])
+@api_view(['PUT'])
 def recover_type_modeling(request, pk, format=None):
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
     modeling_object.modeling_status = 'WORK'
@@ -163,7 +292,7 @@ def recover_type_modeling(request, pk, format=None):
     return Response(status=status.HTTP_200_OK)
 
 
-@api_view(['Put'])
+@api_view(['PUT'])
 def edit_type_modeling(request, pk, format=None):
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
     try:
@@ -185,7 +314,7 @@ def edit_type_modeling(request, pk, format=None):
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['Post'])
+@api_view(['POST'])
 def create_type_modeling(request, format=None):
     try:
         print(request.data)
@@ -212,4 +341,3 @@ def create_type_modeling(request, format=None):
     except Exception as e:
         print(e)
         return Response(status=status.HTTP_400_BAD_REQUEST)
-   
