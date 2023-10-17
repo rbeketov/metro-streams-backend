@@ -1,13 +1,15 @@
 from django.db import models
 
+
 class ApplicationsForModeling(models.Model):
     application_id = models.AutoField(primary_key=True)
     user = models.ForeignKey('Users', models.DO_NOTHING, blank=True, null=True)
     moderator = models.ForeignKey('Users', models.DO_NOTHING, related_name='applicationsformodeling_moderator_set', blank=True, null=True)
-    date_application_create = models.DateField()
-    date_application_accept = models.DateField(blank=True, null=True)
-    date_application_complete = models.DateField(blank=True, null=True)
-    metro_name = models.CharField(max_length=20, blank=True, null=True)
+    date_application_create = models.DateTimeField()
+    date_application_accept = models.DateTimeField(blank=True, null=True)
+    date_application_complete = models.DateTimeField(blank=True, null=True)
+    people_per_minute = models.IntegerField()
+    time_interval = models.IntegerField()
     status_application = models.CharField(blank=True, null=True)
 
     class Meta:
@@ -18,6 +20,7 @@ class ApplicationsForModeling(models.Model):
 class ModelingApplications(models.Model):
     modeling = models.OneToOneField('TypesOfModeling', models.DO_NOTHING, primary_key=True)  # The composite primary key (modeling_id, application_id) found, that is not supported. The first column is selected.
     application = models.ForeignKey(ApplicationsForModeling, models.DO_NOTHING)
+    result_modeling = models.DecimalField(max_digits=30, decimal_places=2, blank=True, null=True)
 
     class Meta:
         managed = False
@@ -32,6 +35,7 @@ class TypesOfModeling(models.Model):
     modeling_price = models.DecimalField(max_digits=30, decimal_places=2)
     modeling_image_url = models.CharField(max_length=100)
     modeling_status = models.CharField(blank=True, null=True)
+    load = models.IntegerField()
 
     class Meta:
         managed = False

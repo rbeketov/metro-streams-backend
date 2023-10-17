@@ -41,18 +41,23 @@ urlpatterns = [
     path('', include(router.urls)),
     
     path(r'modelings/', views.search_modeling, name='search_modeling'),
-    path(r'modelings/<int:pk>/', views.get_type_modeling, name='modeling_detail'),
-    path(r'modelings/<int:pk>/delete/', views.del_type_modeling, name='delete_type_modeling'),
-    path(r'modelings/<int:pk>/recover/', views.recover_type_modeling, name='recover_type_modeling'),
-    path(r'modelings/<int:pk>/edit/', views.edit_type_modeling , name='edit_type_modeling'),
     path(r'modelings/create/', views.create_type_modeling , name='create_type_modeling'),
+    path(r'modelings/<int:pk>/', views.get_type_modeling, name='modeling_detail'),
+    path(r'modelings/<int:pk>/edit/', views.edit_type_modeling , name='edit_type_modeling'),
+    path(r'modelings/<int:pk>/withdraw/', views.withdraw_type_modeling, name='withdraw_type_modeling'),
+    path(r'modelings/<int:pk>/recover/', views.recover_type_modeling, name='recover_type_modeling'),
+    path(r'modelings/add/', views.add_modeling_to_applications, name='add_modeling_to_applications'),
+
 
     path(r'applications/', views.search_applications, name='search_applications'),
     path(r'applications/<int:pk>/', views.get_application, name='get_application_on_id'),
-    path(r'applications/create/', views.add_modeling_to_applications, name='add_modeling_to_applications'),
-    path(r'applications/<int:pk>/take/', views.take_application, name='take_application'),
-    path(r'applications/<int:pk>/edit/', views.edit_application, name='edit_application'),
+    path(r'applications/<int:pk>/update/', views.update_applications, name='update_applications'),
+    path(r'applications/<int:pk>/user_edit/', views.user_edit_application, name='user_edit_application'),
+    path(r'applications/<int:pk>/set_status/', views.moderator_set_status_application, name='moderator_set_status_application'),
+    path(r'applications/<int:pk>/user_delete/', views.user_delete_application, name='user_delete_application'),
     path(r'applications/<int:pk>/delete_modeling/', views.del_modeling_from_application, name='del_modeling_from_application'),
+    path(r'applications/<int:pk>/update_result_modeling/', views.edit_result_modeling_in_application, name='edit_result_modeling_in_application'),
+
 
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('admin/', admin.site.urls),
