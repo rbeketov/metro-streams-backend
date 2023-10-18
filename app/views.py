@@ -35,9 +35,9 @@ from enum import Enum
 from app.s3 import delete_image_from_s3, upload_image_to_s3, get_image_from_s3
 
 
-class UsersENUM(Enum):
-    USER_ID = 1
-    MODERATOR_ID = 2
+
+USER_ID = 1
+MODERATOR_ID = 2
 
 
 
@@ -129,7 +129,7 @@ def search_applications(request, format=None):
 @api_view(['GET'])
 def get_application(request, pk, format=None):
     try:
-        application = ApplicationsForModeling.objects.filter(application_id=pk).annotate(
+        applications = ApplicationsForModeling.objects.filter(application_id=pk).annotate(
             user_email=F('user__email'),
             user_first_name=F('user__first_name'),
             user_second_name=F('user__second_name'),
@@ -156,42 +156,46 @@ def get_application(request, pk, format=None):
             'moderator_first_name',
             'moderator_second_name',
             'moderator_email'
-        ).first()
+        )
 
-        if application:
+        if applications:
+            modeling_data_list = []
+
+            for application in applications:
+                modeling_data = {
+                    'modeling_id': application['modelingapplications__modeling__modeling_id'],
+                    'modeling_name': application['modelingapplications__modeling__modeling_name'],
+                    'modeling_description': application['modelingapplications__modeling__modeling_description'],
+                    'people_per_minute': application['people_per_minute'],
+                    'time_interval': application['time_interval'],
+                    'date_application_create': application['date_application_create'],
+                    'date_application_accept': application['date_application_accept'],
+                    'date_application_complete': application['date_application_complete'],
+                    'status_application': application['status_application'],
+                    'modeling_price': application['modelingapplications__modeling__modeling_price'],
+                    'modeling_image_url': application['modelingapplications__modeling__modeling_image_url'],
+                }
+                modeling_data_list.append(modeling_data)
+
             user_data = {
-                'user_id': application['user_id'],
-                'first_name': application['user_first_name'],
-                'second_name': application['user_second_name'],
-                'email': application['user_email']
+                'user_id': applications[0]['user_id'],
+                'first_name': applications[0]['user_first_name'],
+                'second_name': applications[0]['user_second_name'],
+                'email': applications[0]['user_email']
             }
 
             moderator_data = {
-                'moderator_id': application['moderator_id'],
-                'first_name': application['moderator_first_name'],
-                'second_name': application['moderator_second_name'],
-                'email': application['moderator_email']
-            }
-
-            modeling_data = {
-                'modeling_id': application['modelingapplications__modeling__modeling_id'],
-                'modeling_name': application['modelingapplications__modeling__modeling_name'],
-                'modeling_description': application['modelingapplications__modeling__modeling_description'],
-                'people_per_minute': application['people_per_minute'],
-                'time_interval': application['time_interval'],
-                'date_application_create': application['date_application_create'],
-                'date_application_accept': application['date_application_accept'],
-                'date_application_complete': application['date_application_complete'],
-                'status_application': application['status_application'],
-                'modeling_price': application['modelingapplications__modeling__modeling_price'],
-                'modeling_image_url': application['modelingapplications__modeling__modeling_image_url'],
+                'moderator_id': applications[0]['moderator_id'],
+                'first_name': applications[0]['moderator_first_name'],
+                'second_name': applications[0]['moderator_second_name'],
+                'email': applications[0]['moderator_email']
             }
 
             response_json = {
                 'application_id': pk,
                 'user_data': user_data,
                 'moderator_data': moderator_data,
-                'modeling': [modeling_data]
+                'modeling': modeling_data_list
             }
 
             return Response(response_json, status=status.HTTP_200_OK)
@@ -237,7 +241,7 @@ def moderator_set_status_application(request, pk, format=None):
             return Response({"Ошибка": "Указан недопустимый статус"}, status=status.HTTP_400_BAD_REQUEST)
 
         valid_transitions = {
-            'DRFT': ['WORK'],
+            'ORDR': ['WORK'],
             'WORK': ['COMP', 'CANC'],
         }
 
@@ -546,7 +550,7 @@ def add_modeling_to_applications(request, format=None):
         if not isinstance(data['modeling_id'], list):
             raise TypeError("Ошибка, 'modeling_id' должно быть типа list")
 
-        user_id = UsersENUM.USER_ID
+        user_id = USER_ID
         modeling_ids = data['modeling_id']
 
         application = ApplicationsForModeling.objects.filter(

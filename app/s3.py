@@ -21,6 +21,6 @@ def get_image_from_s3(request, object_name):
     try:
         image = storage.open(object_name)
         image_data = image.read()
-        return HttpResponse(image_data, content_type='image/jpeg')
+        return image_data
     except Exception as e:
         return None
