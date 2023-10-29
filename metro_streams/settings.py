@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     'app',
     'metro_streams',
+    'corsheaders',
 ]
 
 REST_FRAMEWORK = {
@@ -87,6 +88,22 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+]
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'access-control-allow-origin',
+    'content-type',
+    # ...
+]
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'POST',
+    'PUT',
 ]
 
 ROOT_URLCONF = 'metro_streams.urls'

@@ -5,8 +5,7 @@ from app.models import Users
 from app.models import TypesOfModeling
 
 from app.s3 import get_image_from_s3
-from django.utils.encoding import smart_bytes
-import base64
+
 
 
 class UsersSerializer(serializers.ModelSerializer):
@@ -37,13 +36,10 @@ class TypesOfModelingSerializer(serializers.ModelSerializer):
         ]
 
     def get_modeling_image(self, obj):
-        request = self.context.get('request')
-        image_data = get_image_from_s3(request, obj.modeling_image_url)
-        #if image_data:
-        #    base64_image = base64.b64encode(image_data).decode('utf-8')
-        #    return base64_image
-        #return None
-        return "hello"#image_data
+        image_data = get_image_from_s3(obj.modeling_image_url)
+        if image_data:
+            return image_data
+        return None
 
 
 class ApplicationsForModelingSerializer(serializers.ModelSerializer):
