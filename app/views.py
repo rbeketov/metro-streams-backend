@@ -11,6 +11,7 @@ from app.serializers import TypesOfModelingSerializer
 from app.serializers import ModelingApplicationsSerializer
 from app.serializers import ApplicationsForModelingSerializer
 from app.serializers import UsersSerializer
+from app.serializers import DetailsOfModelingSerializer
 
 from app.models import TypesOfModeling
 from app.models import ModelingApplications
@@ -690,7 +691,7 @@ def search_modeling(request, format=None):
 @api_view(['GET'])
 def get_type_modeling(request, pk, format=None):
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
-    serializer = TypesOfModelingSerializer(modeling_object)
+    serializer = DetailsOfModelingSerializer(modeling_object)
     return Response(serializer.data)
 
 

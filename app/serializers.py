@@ -23,16 +23,13 @@ class UsersSerializer(serializers.ModelSerializer):
 
 
 class TypesOfModelingSerializer(serializers.ModelSerializer):
-    modeling_image = serializers.SerializerMethodField()
-
     class Meta:
         model = TypesOfModeling
         fields = [
             'modeling_id',
             'modeling_name',
-            'modeling_description',
             'modeling_price',
-            'modeling_image',
+            'modeling_image_url',
         ]
 
     def get_modeling_image(self, obj):
@@ -40,6 +37,16 @@ class TypesOfModelingSerializer(serializers.ModelSerializer):
         if image_data:
             return image_data
         return None
+
+class DetailsOfModelingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TypesOfModeling
+        fields = [
+            'modeling_name',
+            'modeling_description',
+            'modeling_price',
+            'modeling_image_url',
+        ]
 
 
 class ApplicationsForModelingSerializer(serializers.ModelSerializer):
