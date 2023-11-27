@@ -13,3 +13,12 @@ services:
     volumes:
       - ./db/schema/:/docker-entrypoint-initdb.d
       - ./db/data:/var/lib/postgresql/data
+
+  redis:
+    depends_on:
+      - db
+    image: 'bitnami/redis:latest'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - 6379:6379

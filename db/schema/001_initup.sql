@@ -4,7 +4,7 @@ CREATE TABLE users (
     second_name    varchar(20)    NOT NULL,
     email          varchar(30)    NOT NULL     UNIQUE,
     login          varchar(30)    NOT NULL     UNIQUE,
-    password       varchar(30)    NOT NULL     UNIQUE,
+    password       varchar(150)    NOT NULL     UNIQUE,
     role           char(3)        NOT NULL     CHECK (role IN ('USR', 'MOD')) DEFAULT 'USR'
 );
 

@@ -6,7 +6,6 @@ from rest_framework import status
 from drf_yasg.utils import swagger_auto_schema
 from django.utils.text import slugify
 
-
 from app.serializers import TypesOfModelingSerializer
 from app.serializers import ModelingApplicationsSerializer
 from app.serializers import ApplicationsForModelingSerializer
@@ -18,32 +17,168 @@ from app.models import ModelingApplications
 from app.models import ApplicationsForModeling
 from app.models import Users
 
-from rest_framework.decorators import api_view
-from rest_framework.decorators import action
 
+from django.http import JsonResponse
+from rest_framework.decorators import api_view
 from django.http import HttpRequest
 
-from django.utils import timezone
-from django.db import connection
-from django.shortcuts import render, redirect
-from django.urls import reverse
-from django.db.models import Q, F, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Q, F
 from drf_yasg import openapi
 
-from enum import Enum
+
+import hashlib
+import secrets
 
 from app.s3 import delete_image_from_s3, upload_image_to_s3, get_image_from_s3
 
+from app.redis_view import (
+    set_key,
+    get_value,
+    delete_value
+)
+
+USER_ID = 5
+MODERATOR_ID = 6
 
 
-USER_ID = 1
-MODERATOR_ID = 2
+def check_user(request):
+    response = login_view_get(request._request)
+    if response.status_code == 200:
+        user = Users.objects.get(user_id=response.data.get('user_id').decode())
+        return user.role == 'USR'
+    return False
 
 
+def check_moderator(request):
+    response = login_view_get(request._request)
+    if response.status_code == 200:
+        user = Users.objects.get(user_id=response.data.get('user_id'))
+        return user.role == 'MOD'
+    return False
 
-# Domain Users
-    # in process
+
+#ser Domain
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['first_name', 'second_name', 'email', 'login', 'password'],
+        properties={
+            'first_name': openapi.Schema(type=openapi.TYPE_STRING, description='Имя пользователя'),
+            'second_name': openapi.Schema(type=openapi.TYPE_STRING, description='Фамилия пользователя'),
+            'email': openapi.Schema(type=openapi.TYPE_STRING, description='Электронная почта пользователя'),
+            'login': openapi.Schema(type=openapi.TYPE_STRING, description='Логин пользователя'),
+            'password': openapi.Schema(type=openapi.TYPE_STRING, description='Пароль пользователя'),
+        }
+    ),
+    responses={
+        201: openapi.Response(description='Пользователь успешно создан'),
+        400: openapi.Response(description='Не хватает обязательных полей или пользователь уже существует'),
+    },
+    operation_description='Регистрация нового пользователя',
+)
+@api_view(['POST'])
+def registration(request, format=None):
+    required_fields = ['first_name', 'second_name', 'email', 'login', 'password']
+    missing_fields = [field for field in required_fields if field not in request.data]
+
+    if missing_fields:
+        return Response({'Ошибка': f'Не хватает обязательных полей: {", ".join(missing_fields)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if Users.objects.filter(email=request.data['email']).exists() or Users.objects.filter(login=request.data['login']).exists():
+        return Response({'Ошибка': 'Пользователь с таким email или login уже существует'}, status=status.HTTP_400_BAD_REQUEST)
+
+    password_hash = hashlib.sha256(f'{request.data["password"]}'.encode()).hexdigest()
+
+    Users.objects.create(
+        first_name=request.data['first_name'],
+        second_name=request.data['second_name'],
+        email=request.data['email'],
+        login=request.data['login'],
+        password=password_hash,
+        role='USR',
+    )
+    return Response(status=status.HTTP_201_CREATED)
+
+
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'login': openapi.Schema(type=openapi.TYPE_STRING, description='Логин пользователя'),
+            'password': openapi.Schema(type=openapi.TYPE_STRING, description='Пароль пользователя'),
+        },
+        required=['login', 'password'],
+    ),
+    responses={
+        200: openapi.Response(description='Успешная авторизация', schema=openapi.Schema(type=openapi.TYPE_OBJECT, properties={'user_id': openapi.Schema(type=openapi.TYPE_INTEGER)})),
+        400: openapi.Response(description='Неверные параметры запроса или отсутствуют обязательные поля'),
+        401: openapi.Response(description='Неавторизованный доступ'),
+    },
+    operation_description='Метод для авторизации',
+)
+@api_view(['POST'])
+def login_view(request, format=None):
+    existing_session = request.COOKIES.get('session_key')
+    if existing_session and get_value(existing_session):
+        return Response({'user_id': get_value(existing_session)})
+
+    login_ = request.data.get("login")
+    password = request.data.get("password")
+    
+    if not login_ or not password:
+        return Response({'error': 'Необходимы логин и пароль'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = Users.objects.get(login=login_)
+    except Users.DoesNotExist:
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+    password_hash = hashlib.sha256(f'{password}'.encode()).hexdigest()
+
+    if password_hash == user.password:
+        random_part = secrets.token_hex(8)
+        session_hash = hashlib.sha256(f'{user.user_id}:{login_}:{random_part}'.encode()).hexdigest()
+        set_key(session_hash, user.user_id)
+
+        response = JsonResponse({'user_id': user.user_id})
+        response.set_cookie('session_key', session_hash, max_age=86400)
+        return response
+
+    return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+
+@api_view(['GET'])
+def login_view_get(request, format=None):
+    existing_session = request.COOKIES.get('session_key')
+    if existing_session and get_value(existing_session):
+        return Response({'user_id': get_value(existing_session)})
+    return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+
+@swagger_auto_schema(
+    method='get',
+    responses={
+        200: openapi.Response(description='Успешный выход', schema=openapi.Schema(type=openapi.TYPE_OBJECT, properties={'message': openapi.Schema(type=openapi.TYPE_STRING)})),
+        401: openapi.Response(description='Неавторизованный доступ', schema=openapi.Schema(type=openapi.TYPE_OBJECT, properties={'error': openapi.Schema(type=openapi.TYPE_STRING)})),
+    },
+    operation_description='Метод для выхода пользователя из системы',
+)
+@api_view(['GET'])
+def logout_view(request):
+    session_key = request.COOKIES.get('session_key')
+
+    if session_key:
+        if not get_value(session_key):
+            return JsonResponse({'error': 'Вы не авторизованы'}, status=status.HTTP_401_UNAUTHORIZED)
+        delete_value(session_key)
+        response = JsonResponse({'message': 'Вы успешно вышли из системы'})
+        response.delete_cookie('session_key')
+        return response
+    else:
+        return JsonResponse({'error': 'Вы не авторизованы'}, status=status.HTTP_401_UNAUTHORIZED)
+
 
 # Domain ApplicationsForModeling
 @swagger_auto_schema(
@@ -67,6 +202,9 @@ MODERATOR_ID = 2
 )
 @api_view(['GET'])
 def search_applications(request, format=None):
+    if not check_moderator(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
     status_filter = request.GET.get('status')
     date_start = request.GET.get('date_start')
     date_end = request.GET.get('date_end')
@@ -129,6 +267,9 @@ def search_applications(request, format=None):
 )
 @api_view(['GET'])
 def get_application(request, pk, format=None):
+    if not check_moderator(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
     try:
         applications = ApplicationsForModeling.objects.filter(application_id=pk).annotate(
             user_email=F('user__email'),
@@ -228,6 +369,9 @@ def get_application(request, pk, format=None):
 )
 @api_view(['PUT'])
 def moderator_set_status_application(request, pk, format=None):
+    if not check_moderator(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
     try:
         # check authorization
         data = request.data
@@ -291,6 +435,9 @@ def moderator_set_status_application(request, pk, format=None):
 )
 @api_view(['PUT'])
 def user_edit_application(request, pk, format=None):
+    if not check_user(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
     try:
         data = request.data
         application = ApplicationsForModeling.objects.get(pk=pk)
@@ -353,6 +500,9 @@ def user_edit_application(request, pk, format=None):
 )
 @api_view(['DELETE'])
 def user_delete_application(request, pk, format=None):
+    if not check_user(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
     try:
         data = request.data
         application = ApplicationsForModeling.objects.get(pk=pk)
@@ -413,6 +563,8 @@ def user_delete_application(request, pk, format=None):
 )
 @api_view(['DELETE'])
 def del_modeling_from_application(request, pk, format=None):
+    if not check_user(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
     try:
         application = ApplicationsForModeling.objects.get(pk=pk)
         modeling_id = request.data.get('modeling_id')
@@ -460,6 +612,9 @@ def del_modeling_from_application(request, pk, format=None):
 )
 @api_view(['PUT'])
 def edit_result_modeling_in_application(request, pk, format=None):
+    if not check_moderator(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
     try:
         modeling_id = request.data.get('modeling_id')
         new_result = request.data.get('new_result')
@@ -501,6 +656,9 @@ def edit_result_modeling_in_application(request, pk, format=None):
 )
 @api_view(['PUT'])
 def update_applications(request, pk, format=None):
+    if not check_user(request) or not check_moderator(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
     try:
         application = ApplicationsForModeling.objects.get(pk=pk)
         people_per_minute = request.data.get('people_per_minute')
@@ -540,6 +698,9 @@ def update_applications(request, pk, format=None):
 )
 @api_view(['POST'])
 def add_modeling_to_applications(request, format=None):
+    if not check_user(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
     try:
         data = request.data
 
@@ -705,6 +866,9 @@ def get_type_modeling(request, pk, format=None):
 )
 @api_view(['PUT'])
 def withdraw_type_modeling(request, pk, format=None):
+    if not check_moderator(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
     modeling_object.modeling_status = 'DELE'
     modeling_object.save()
@@ -721,6 +885,8 @@ def withdraw_type_modeling(request, pk, format=None):
 )
 @api_view(['PUT'])
 def recover_type_modeling(request, pk, format=None):
+    if not check_moderator(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
     modeling_object.modeling_status = 'WORK'
     modeling_object.save()
@@ -747,6 +913,8 @@ def recover_type_modeling(request, pk, format=None):
 )
 @api_view(['PUT'])
 def edit_type_modeling(request, pk, format=None):
+    if not check_moderator(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
     try:
         data = request.data
@@ -798,6 +966,8 @@ def edit_type_modeling(request, pk, format=None):
 )
 @api_view(['POST'])
 def create_type_modeling(request, format=None):
+    if not check_moderator(request):
+        return Response(status=status.HTTP_403_FORBIDDEN)
     try:
         data = request.data
 
@@ -829,4 +999,3 @@ def create_type_modeling(request, format=None):
     except Exception as e:
         print(e)
         return Response(status=status.HTTP_400_BAD_REQUEST)
-

@@ -37,6 +37,9 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
+# router.register(r'api/users/registration', views.UserRegistrationViewSet, basename='user')
+
+
 urlpatterns = [
     path('', include(router.urls)),
     
@@ -58,6 +61,9 @@ urlpatterns = [
     path(r'api/applications/<int:pk>/delete_modeling/', views.del_modeling_from_application, name='del_modeling_from_application'),
     path(r'api/applications/<int:pk>/update_result_modeling/', views.edit_result_modeling_in_application, name='edit_result_modeling_in_application'),
 
+    path(r'api/users/login/', views.login_view, name="login"),
+    path(r'api/users/logout/', views.logout_view, name="logout"),
+    path(r'api/users/registration/', views.registration, name='registration'),
 
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('admin/', admin.site.urls),
