@@ -7,17 +7,14 @@ from app.models import TypesOfModeling
 from app.s3 import get_image_from_s3
 
 
-
 class UsersSerializer(serializers.ModelSerializer):
     class Meta:
         model = Users
         fields = [
-            # 'user_id',
+            'user_id',
             'first_name',
             'second_name',
             'email',
-            'login',
-            'password',
             'role',
         ]
 

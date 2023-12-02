@@ -1,6 +1,10 @@
+import datetime
+
 from django.db import models
-from django.contrib.auth.hashers import make_password
-from django.contrib.auth.models import AbstractUser, Group, Permission
+
+
+def default_datetime():
+    return datetime.now()
 
 class ApplicationsForModeling(models.Model):
     application_id = models.AutoField(primary_key=True)

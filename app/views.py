@@ -18,6 +18,7 @@ from app.models import ApplicationsForModeling
 from app.models import Users
 
 
+from django.utils import timezone
 from django.http import JsonResponse
 from rest_framework.decorators import api_view
 from django.http import HttpRequest
@@ -41,20 +42,12 @@ USER_ID = 5
 MODERATOR_ID = 6
 
 
-def check_user(request):
-    response = login_view_get(request._request)
-    if response.status_code == 200:
-        user = Users.objects.get(user_id=response.data.get('user_id').decode())
-        return user.role == 'USR'
-    return False
-
-
-def check_moderator(request):
+def check_authorize(request):
     response = login_view_get(request._request)
     if response.status_code == 200:
         user = Users.objects.get(user_id=response.data.get('user_id'))
-        return user.role == 'MOD'
-    return False
+        return user
+    return None
 
 
 #ser Domain
@@ -121,6 +114,7 @@ def registration(request, format=None):
 @api_view(['POST'])
 def login_view(request, format=None):
     existing_session = request.COOKIES.get('session_key')
+    # print(existing_session)
     if existing_session and get_value(existing_session):
         return Response({'user_id': get_value(existing_session)})
 
@@ -142,15 +136,16 @@ def login_view(request, format=None):
         session_hash = hashlib.sha256(f'{user.user_id}:{login_}:{random_part}'.encode()).hexdigest()
         set_key(session_hash, user.user_id)
 
-        response = JsonResponse({'user_id': user.user_id})
+        serialize = UsersSerializer(user)
+        response = JsonResponse(serialize.data)
         response.set_cookie('session_key', session_hash, max_age=86400)
         return response
 
     return Response(status=status.HTTP_401_UNAUTHORIZED)
 
 
-@api_view(['GET'])
-def login_view_get(request, format=None):
+
+def login_view_get(request):
     existing_session = request.COOKIES.get('session_key')
     if existing_session and get_value(existing_session):
         return Response({'user_id': get_value(existing_session)})
@@ -168,7 +163,7 @@ def login_view_get(request, format=None):
 @api_view(['GET'])
 def logout_view(request):
     session_key = request.COOKIES.get('session_key')
-
+    # print(session_key)
     if session_key:
         if not get_value(session_key):
             return JsonResponse({'error': 'Вы не авторизованы'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -178,6 +173,24 @@ def logout_view(request):
         return response
     else:
         return JsonResponse({'error': 'Вы не авторизованы'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+# support func
+def filter_applications(status_filter, date_start, date_end, user):
+    if not user:
+        applications = ApplicationsForModeling.objects.all()
+    else:
+        applications = ApplicationsForModeling.objects.filter(
+            Q(user=user)
+        )
+    if status_filter:
+        applications = applications.filter(Q(status_application=status_filter))
+    if date_start:
+        applications = applications.filter(Q(date_application_create__gte=date_start))
+    if date_end:
+        applications = applications.filter(Q(date_application_create__lte=date_end))
+
+    return applications
 
 
 # Domain ApplicationsForModeling
@@ -202,49 +215,21 @@ def logout_view(request):
 )
 @api_view(['GET'])
 def search_applications(request, format=None):
-    if not check_moderator(request):
+    user = check_authorize(request)
+    if not user:
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     status_filter = request.GET.get('status')
     date_start = request.GET.get('date_start')
     date_end = request.GET.get('date_end')
 
+    usr = user if user.role == 'USR' else None
+
     if date_start and date_end:
         date_start = datetime.strptime(date_start, "%Y-%m-%d") + timedelta(hours=0, minutes=0, seconds=0)
         date_end = datetime.strptime(date_end, "%Y-%m-%d") + timedelta(hours=0, minutes=0, seconds=0)
 
-
-    if status_filter and date_start and date_end:
-        applications = ApplicationsForModeling.objects.filter(
-            Q(status_application=status_filter) &
-            Q(date_application_create__gte=date_start) &
-            Q(date_application_create__lte=date_end)
-        )
-    elif status_filter and date_start:
-        applications = ApplicationsForModeling.objects.filter(
-            Q(status_application=status_filter) &
-            Q(date_application_create__gte=date_start)
-        )
-    elif status_filter and date_start:
-        applications = ApplicationsForModeling.objects.filter(
-            Q(status_application=status_filter) &
-            Q(date_application_create__gte=date_end)
-        )
-    elif date_start and date_end:
-        applications = ApplicationsForModeling.objects.filter(
-            Q(date_application_create__gte=date_start) &
-            Q(date_application_create__lte=date_end)
-        )
-    elif date_start:
-        applications = ApplicationsForModeling.objects.filter(
-            Q(date_application_create__gte=date_start)
-        )
-    elif date_end:
-        applications = ApplicationsForModeling.objects.filter(
-            Q(date_application_create__lte=date_end)
-        )
-    else:
-        applications = ApplicationsForModeling.objects.all()
+    applications = filter_applications(status_filter, date_start, date_end, usr)
 
     applications = applications.annotate(
         user_first_name=F('user__first_name'),
@@ -252,7 +237,7 @@ def search_applications(request, format=None):
         moderator_first_name=F('moderator__first_name'),
         moderator_second_name=F('moderator__second_name'),
     )
- 
+
     serializer = ApplicationsForModelingSerializer(applications, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -267,7 +252,14 @@ def search_applications(request, format=None):
 )
 @api_view(['GET'])
 def get_application(request, pk, format=None):
-    if not check_moderator(request):
+    user = check_authorize(request)
+    if not user:
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
+    for_check = ApplicationsForModeling.objects.filter(
+        Q(application_id=pk) & Q(user=user)
+    )
+    if (not user.role == 'MOD' and not for_check):
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
@@ -347,7 +339,6 @@ def get_application(request, pk, format=None):
         return Response({"Ошибка": "Заявки с таким id не существует"}, status=status.HTTP_404_NOT_FOUND)
 
 
-
 @swagger_auto_schema(
     method='PUT',
     request_body=openapi.Schema(
@@ -356,7 +347,7 @@ def get_application(request, pk, format=None):
             'status': openapi.Schema(
                 type=openapi.TYPE_STRING,
                 description="Новый статус заявки",
-                enum=["WORK", "COMP", "CANC"],
+                enum=[  "COMP", "CANC"],
             ),
         },
         required=['status'],
@@ -369,11 +360,11 @@ def get_application(request, pk, format=None):
 )
 @api_view(['PUT'])
 def moderator_set_status_application(request, pk, format=None):
-    if not check_moderator(request):
+    user = check_authorize(request)
+    if not user or user.role != 'MOD':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
-        # check authorization
         data = request.data
         application = ApplicationsForModeling.objects.get(pk=pk)
 
@@ -382,11 +373,10 @@ def moderator_set_status_application(request, pk, format=None):
         else:
             return Response({"Ошибка": "\'status\' отсутствует в теле запроса"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if new_status not in ['WORK', 'COMP', 'CANC']:
+        if new_status not in ['COMP', 'CANC']:
             return Response({"Ошибка": "Указан недопустимый статус"}, status=status.HTTP_400_BAD_REQUEST)
 
         valid_transitions = {
-            'ORDR': ['WORK'],
             'WORK': ['COMP', 'CANC'],
         }
 
@@ -422,7 +412,7 @@ def moderator_set_status_application(request, pk, format=None):
             'status': openapi.Schema(
                 type=openapi.TYPE_STRING,
                 description="Новый статус заявки",
-                enum=["ORDR", "CANC"],
+                enum=["WORK", "CANC"],
             ),
         },
         required=['status'],
@@ -434,8 +424,9 @@ def moderator_set_status_application(request, pk, format=None):
     operation_description="Изменить статус заявки",
 )
 @api_view(['PUT'])
-def user_edit_application(request, pk, format=None):
-    if not check_user(request):
+def user_set_status(request, pk, format=None):
+    user = check_authorize(request)
+    if not user or user.role != 'USR':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
@@ -447,12 +438,12 @@ def user_edit_application(request, pk, format=None):
         else:
             return Response({"Ошибка": "\'status\' отсутствует в теле запроса"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if new_status not in ['ORDR', 'CANC']:
+        if new_status not in ['WORK', 'CANC']:
             return Response({"Ошибка": "Указан недопустимый статус"}, status=status.HTTP_400_BAD_REQUEST)
 
         valid_transitions = {
-            'DRFT': ['ORDR'],
-            'ORDE': ['CANC'],
+            'DRFT': ['WORK'],
+            'WORK': ['CANC'],
         }
 
         current_status = application.status_application
@@ -500,7 +491,8 @@ def user_edit_application(request, pk, format=None):
 )
 @api_view(['DELETE'])
 def user_delete_application(request, pk, format=None):
-    if not check_user(request):
+    user = check_authorize(request)
+    if not user or user.role != 'USR':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
@@ -563,10 +555,18 @@ def user_delete_application(request, pk, format=None):
 )
 @api_view(['DELETE'])
 def del_modeling_from_application(request, pk, format=None):
-    if not check_user(request):
+    user = check_authorize(request)
+    if not user or user.role != 'USR':
         return Response(status=status.HTTP_403_FORBIDDEN)
+
+    application = ApplicationsForModeling.objects.filter(
+        Q(application_id=pk) & Q(user=user)
+    )
+    if not application:
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
     try:
-        application = ApplicationsForModeling.objects.get(pk=pk)
+        #application = ApplicationsForModeling.objects.get(pk=pk)
         modeling_id = request.data.get('modeling_id')
 
         if modeling_id is None:
@@ -612,7 +612,8 @@ def del_modeling_from_application(request, pk, format=None):
 )
 @api_view(['PUT'])
 def edit_result_modeling_in_application(request, pk, format=None):
-    if not check_moderator(request):
+    user = check_authorize(request)
+    if not user or user.role != 'MOD':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
@@ -656,11 +657,18 @@ def edit_result_modeling_in_application(request, pk, format=None):
 )
 @api_view(['PUT'])
 def update_applications(request, pk, format=None):
-    if not check_user(request) or not check_moderator(request):
+    user = check_authorize(request)
+    if not user or user.role != 'USR':
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
+    application = ApplicationsForModeling.objects.filter(
+        Q(application_id=pk) & Q(user=user)
+    )
+    if not application:
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
-        application = ApplicationsForModeling.objects.get(pk=pk)
+        # application = ApplicationsForModeling.objects.get(pk=pk)
         people_per_minute = request.data.get('people_per_minute')
         time_interval = request.data.get('time_interval')
 
@@ -682,78 +690,70 @@ def update_applications(request, pk, format=None):
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         properties={
-            'user_id': openapi.Schema(type=openapi.TYPE_INTEGER),
             'modeling_id': openapi.Schema(
                 type=openapi.TYPE_ARRAY,
                 items=openapi.Items(type=openapi.TYPE_INTEGER),
             ),
         },
-        required=['user_id', 'modeling_id'],
+        required=['modeling_id'],
     ),
     responses={
         201: "Успешное добавление модели в заявку",
         400: "Неверный запрос",
     },
-    operation_description="Добавление модели в последнюю заявку",
+    operation_description="Добавление модели в последнюю черновую заявку",
 )
 @api_view(['POST'])
 def add_modeling_to_applications(request, format=None):
-    if not check_user(request):
+    user = check_authorize(request)
+    if not user or user.role != 'USR':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
         data = request.data
 
-        required_fields = ['user_id', 'modeling_id']
-        for field in required_fields:
-            if field not in data:
-                raise KeyError(f"Поле '{field}' отсутствует в теле запроса")
+        if 'modeling_id' not in data:
+            raise KeyError(f"Объект моделирования отсутствует в запросе")
 
-        if not isinstance(data['modeling_id'], list):
-            raise TypeError("Ошибка, 'modeling_id' должно быть типа list")
-
-        user_id = USER_ID
-        modeling_ids = data['modeling_id']
+        usr_id = user.user_id
+        modeling_id = data['modeling_id']
 
         application = ApplicationsForModeling.objects.filter(
-            user_id=user_id,
+            user_id=usr_id,
             status_application='DRFT'
-        ).order_by('-date_application_create').first()
+        ).first()
 
         if not application:
-            raise RuntimeError("Нет ни одной созданной заявки")
+            application = ApplicationsForModeling.objects.create(
+                user=user,
+                status_application='DRFT',
+                date_application_create=timezone.now()
+            )
         else:
-            conflict_models = []
-            for modeling_id in modeling_ids:
-                modeling_application = ModelingApplications.objects.filter(
-                    modeling_id=modeling_id,
-                    application=application
-                ).first()
+            modeling_application = ModelingApplications.objects.filter(
+                modeling_id=modeling_id,
+                application=application
+            ).first()
 
-                if modeling_application:
-                    conflict_models.append(modeling_id)
-
-            if conflict_models:
+            if modeling_application:
                 return Response(
-                    {"Ошибка": f"Модель(модели) с ID {', '.join(map(str, conflict_models))} уже существуют в заявке"},
+                    {"error": f"Модель с ID {modeling_id} уже существуют в заявке"},
                     status=status.HTTP_409_CONFLICT
                 )
 
-        for modeling_id in modeling_ids:
-            modeling_application = ModelingApplications.objects.create(
-                modeling_id=modeling_id,
-                application=application
-            )
+        modeling_application = ModelingApplications.objects.create(
+            modeling_id=modeling_id,
+            application=application
+        )
 
         request_for_search = HttpRequest()
         request_for_search.method = 'GET'
         search_result = search_applications(request_for_search, format)
         return Response(search_result.data, status=status.HTTP_201_CREATED)
 
-    except Users.DoesNotExist:
-        return Response({"Ошибка": "Пользователь не найден"}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response({"Ошибка": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @swagger_auto_schema(
@@ -788,53 +788,34 @@ def add_modeling_to_applications(request, format=None):
 )
 @api_view(['GET'])
 def search_modeling(request, format=None):
-    query_name = request.GET.get('name')
-    price_under = request.GET.get('price_under')
-    price_upper = request.GET.get('price_upper')
-
-    if query_name and price_under and price_upper:
+    user = check_authorize(request)
+    show_withdraw = (user and user.role == 'MOD')
+    
+    if show_withdraw:
         modeling_objects = TypesOfModeling.objects.filter(
-            Q(modeling_status="WORK") &
-            Q(modeling_name__icontains=query_name.lower()) &
-            Q(modeling_price__gte=price_under) &
-            Q(modeling_price__lte=price_upper)
-        )
-    elif query_name and price_under:
-        modeling_objects = TypesOfModeling.objects.filter(
-            Q(modeling_status="WORK") &
-            Q(modeling_name__icontains=query_name.lower()) &
-            Q(modeling_price__gte=price_under)
-        )
-    elif query_name and price_upper:
-        modeling_objects = TypesOfModeling.objects.filter(
-            Q(modeling_status="WORK") &
-            Q(modeling_name__icontains=query_name.lower()) &
-            Q(modeling_price__lte=price_upper)
-        )
-    elif price_under and price_upper:
-        modeling_objects = TypesOfModeling.objects.filter(
-            Q(modeling_status="WORK") &
-            Q(modeling_price__gte=price_under) &
-            Q(modeling_price__lte=price_upper)
-        )
-    elif query_name:
-        modeling_objects = TypesOfModeling.objects.filter(
-            Q(modeling_status="WORK") &
-            Q(modeling_name__icontains=query_name.lower())
-        )
-    elif price_under:
-        modeling_objects = TypesOfModeling.objects.filter(
-            Q(modeling_status="WORK") &
-            Q(modeling_price__gte=price_under)
-        )
-    elif price_upper:
-        modeling_objects = TypesOfModeling.objects.filter(
-            Q(modeling_status="WORK") &
-            Q(modeling_price__lte=price_upper)
+            Q(modeling_status="WORK") |
+            Q(modeling_status="WITH")
         )
     else:
         modeling_objects = TypesOfModeling.objects.filter(
             Q(modeling_status="WORK")
+        )
+
+    query_name = request.GET.get('name')
+    price_under = request.GET.get('price_under')
+    price_upper = request.GET.get('price_upper')
+
+    if query_name:
+        modeling_objects = modeling_objects.filter(
+            Q(modeling_name__icontains=query_name.lower())
+        )
+    if price_under:
+        modeling_objects = modeling_objects.filter(
+            Q(modeling_price__gte=price_under)
+        )
+    if price_upper:
+        modeling_objects = modeling_objects.filter(
+            Q(modeling_price__lte=price_upper)
         )
 
     serializer = TypesOfModelingSerializer(modeling_objects, many=True)
@@ -851,26 +832,47 @@ def search_modeling(request, format=None):
 )
 @api_view(['GET'])
 def get_type_modeling(request, pk, format=None):
-    modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
+    user = check_authorize(request)
+
+    modeling_object = TypesOfModeling.objects.filter(
+        Q(modeling_id=pk)
+    ).first()
+
+    if (
+        not modeling_object or
+        modeling_object.modeling_status == 'DELE' or
+        (
+            modeling_object.modeling_status == 'WITH' and
+            not(user and user.role == "MOD")   
+        )
+    ):
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
     serializer = DetailsOfModelingSerializer(modeling_object)
-    return Response(serializer.data)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @swagger_auto_schema(
     method='put',
     responses={
         200: "Успешно",
+        400: "Ошибка: можно отозвать только объект моделирования \'в работе\'",
         404: "Не найдено",
     },
     operation_description="Отзыв услуги по ID",
 )
 @api_view(['PUT'])
 def withdraw_type_modeling(request, pk, format=None):
-    if not check_moderator(request):
+    user = check_authorize(request)
+    if not user or user.role != 'MOD':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
-    modeling_object.modeling_status = 'DELE'
+    if modeling_object.modeling_status == "WORK":
+        modeling_object.modeling_status = 'WITH'
+    else:
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+
     modeling_object.save()
     return Response(status=status.HTTP_200_OK)
 
@@ -878,17 +880,48 @@ def withdraw_type_modeling(request, pk, format=None):
 @swagger_auto_schema(
     method='put',
     responses={
-        200: "Success",
-        404: "Not Found",
+        200: "Успешно",
+        400: "Ошибка: можно восстановить только отозванный объект моделирования",
+        404: "Не найден объект моделирования",
     },
-    operation_description="Recover a modeling object by ID",
+    operation_description="Восстановить объект моделирования по ID",
 )
 @api_view(['PUT'])
 def recover_type_modeling(request, pk, format=None):
-    if not check_moderator(request):
+    user = check_authorize(request)
+    if not user or user.role != 'MOD':
         return Response(status=status.HTTP_403_FORBIDDEN)
+
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
-    modeling_object.modeling_status = 'WORK'
+    if modeling_object.modeling_status == "WITH":
+        modeling_object.modeling_status = 'WORK'
+    else:
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    modeling_object.save()
+    return Response(status=status.HTTP_200_OK)
+
+
+@swagger_auto_schema(
+    method='delete',
+    responses={
+        200: "Успешно",
+        400: "Ошибка: нельзя удалить объект моделирования \'в работе\'",
+        404: "Не найден объект моделирования",
+    },
+    operation_description="Удалить объект моделирования по ID",
+)
+@api_view(['DELETE'])
+def delete_type_modeling(request, pk, format=None):
+    user = check_authorize(request)
+    if not user or user.role != 'MOD':
+        return Response(status=status.HTTP_403_FORBIDDEN)
+
+    modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
+    if modeling_object.modeling_status == "WITH":
+        modeling_object.modeling_status = 'DELE'
+    else:
+        return Response(status=status.HTTP_400_BAD_REQUEST)
     modeling_object.save()
     return Response(status=status.HTTP_200_OK)
 
@@ -913,8 +946,10 @@ def recover_type_modeling(request, pk, format=None):
 )
 @api_view(['PUT'])
 def edit_type_modeling(request, pk, format=None):
-    if not check_moderator(request):
+    user = check_authorize(request)
+    if not user or user.role != 'MOD':
         return Response(status=status.HTTP_403_FORBIDDEN)
+
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
     try:
         data = request.data
@@ -966,8 +1001,10 @@ def edit_type_modeling(request, pk, format=None):
 )
 @api_view(['POST'])
 def create_type_modeling(request, format=None):
-    if not check_moderator(request):
+    user = check_authorize(request)
+    if not user or user.role != 'MOD':
         return Response(status=status.HTTP_403_FORBIDDEN)
+
     try:
         data = request.data
 
@@ -997,5 +1034,4 @@ def create_type_modeling(request, format=None):
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     except Exception as e:
-        print(e)
         return Response(status=status.HTTP_400_BAD_REQUEST)
