@@ -178,11 +178,12 @@ def logout_view(request):
 # support func
 def filter_applications(status_filter, date_start, date_end, user):
     if not user:
-        applications = ApplicationsForModeling.objects.all()
+        applications = ApplicationsForModeling.objects.exclude(status_application='DELE')
     else:
         applications = ApplicationsForModeling.objects.filter(
             Q(user=user)
-        )
+        ).exclude(status_application='DELE')
+
     if status_filter:
         applications = applications.filter(Q(status_application=status_filter))
     if date_start:
@@ -236,6 +237,7 @@ def search_applications(request, format=None):
         user_second_name=F('user__second_name'),
         moderator_first_name=F('moderator__first_name'),
         moderator_second_name=F('moderator__second_name'),
+        moderator_email=F('moderator__email'),
     )
 
     serializer = ApplicationsForModelingSerializer(applications, many=True)
@@ -300,16 +302,19 @@ def get_application(request, pk, format=None):
                     'modeling_id': application['modelingapplications__modeling__modeling_id'],
                     'modeling_name': application['modelingapplications__modeling__modeling_name'],
                     'modeling_description': application['modelingapplications__modeling__modeling_description'],
-                    'people_per_minute': application['people_per_minute'],
-                    'time_interval': application['time_interval'],
-                    'date_application_create': application['date_application_create'],
-                    'date_application_accept': application['date_application_accept'],
-                    'date_application_complete': application['date_application_complete'],
-                    'status_application': application['status_application'],
                     'modeling_price': application['modelingapplications__modeling__modeling_price'],
                     'modeling_image_url': application['modelingapplications__modeling__modeling_image_url'],
                 }
                 modeling_data_list.append(modeling_data)
+
+            application_data = {
+                'people_per_minute': applications[0]['people_per_minute'],
+                'time_interval': applications[0]['time_interval'],
+                'date_application_create': applications[0]['date_application_create'],
+                'date_application_accept': applications[0]['date_application_accept'],
+                'date_application_complete': applications[0]['date_application_complete'],
+                'status_application': applications[0]['status_application'],
+            }
 
             user_data = {
                 'user_id': applications[0]['user_id'],
@@ -327,6 +332,7 @@ def get_application(request, pk, format=None):
 
             response_json = {
                 'application_id': pk,
+                'application_data': application_data,
                 'user_data': user_data,
                 'moderator_data': moderator_data,
                 'modeling': modeling_data_list
@@ -493,42 +499,24 @@ def user_set_status(request, pk, format=None):
 def user_delete_application(request, pk, format=None):
     user = check_authorize(request)
     if not user or user.role != 'USR':
+        print("a?")
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
-        data = request.data
         application = ApplicationsForModeling.objects.get(pk=pk)
-
-        if 'status' in data:
-            new_status = data['status']
-        else:
-            return Response({"Ошибка": "\'status\' отсутствует в теле запроса"}, status=status.HTTP_400_BAD_REQUEST)
-
-        if new_status not in ['DELE']:
-            return Response({"Ошибка": "Указан недопустимый статус"}, status=status.HTTP_400_BAD_REQUEST)
-
-        valid_transitions = {
-            'DRFT': ['DELE'],
-        }
 
         current_status = application.status_application
 
-        if new_status not in valid_transitions.get(current_status, []):
+        if current_status != 'DRFT':
             return Response(
-                {"error": f"Невозможно сменить статус с {current_status} на {new_status}"},
+                {"error": f"удалить можно, только черновую заявку"},
                 status=status.HTTP_400_BAD_REQUEST
             )
+       
+        application.status_application = 'DELE'
+        application.save()
 
-        if application.status_application != new_status:
-            application.status_application = new_status
-            application.save()
-            request_for_get_application = HttpRequest()
-            request_for_get_application.method = 'GET'
-            response = get_application(request_for_get_application, pk)
-            return Response(response.data, status=status.HTTP_200_OK)
-        else:
-            return Response({"Ошибка": f"Заявка {pk} уже имеет {new_status}"}, status=status.HTTP_400_BAD_REQUEST)
-
+        return Response(status=status.HTTP_200_OK)
     except ApplicationsForModeling.DoesNotExist:
         return Response({"Ошибка": "Заявка не найдена"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
@@ -559,28 +547,27 @@ def del_modeling_from_application(request, pk, format=None):
     if not user or user.role != 'USR':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
+    
     application = ApplicationsForModeling.objects.filter(
         Q(application_id=pk) & Q(user=user)
-    )
+    ).first()
+
     if not application:
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
-        #application = ApplicationsForModeling.objects.get(pk=pk)
         modeling_id = request.data.get('modeling_id')
 
         if modeling_id is None:
             return Response({"error": "Поле 'modeling_id' отсутствует в теле запроса"}, status=status.HTTP_400_BAD_REQUEST)
-
-        modeling_application = ModelingApplications.objects.filter(
-            application=application, modeling_id=modeling_id).first()
+        
+        modeling_application = ModelingApplications.objects.get(
+            application=application, modeling=modeling_id
+        )
 
         if modeling_application:
             modeling_application.delete()
-            request_for_get_application = HttpRequest()
-            request_for_get_application.method = 'GET'
-            response = get_application(request_for_get_application, pk)
-            return Response(response.data, status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_200_OK)
         else:
             return Response({"error": "Запрошеная услуга не найдена в заявке"}, status=status.HTTP_404_NOT_FOUND)
     except ApplicationsForModeling.DoesNotExist:
@@ -663,7 +650,8 @@ def update_applications(request, pk, format=None):
 
     application = ApplicationsForModeling.objects.filter(
         Q(application_id=pk) & Q(user=user)
-    )
+    ).first()
+
     if not application:
         return Response(status=status.HTTP_403_FORBIDDEN)
 
@@ -671,7 +659,7 @@ def update_applications(request, pk, format=None):
         # application = ApplicationsForModeling.objects.get(pk=pk)
         people_per_minute = request.data.get('people_per_minute')
         time_interval = request.data.get('time_interval')
-
+        print(request.data)
         application.people_per_minute = people_per_minute
         application.time_interval = time_interval
         application.save()
@@ -746,10 +734,10 @@ def add_modeling_to_applications(request, format=None):
             application=application
         )
 
-        request_for_search = HttpRequest()
-        request_for_search.method = 'GET'
-        search_result = search_applications(request_for_search, format)
-        return Response(search_result.data, status=status.HTTP_201_CREATED)
+        response_data = {
+            "draft_id" : application.application_id
+        }
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     except Exception as e:
         return Response({"Ошибка": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -790,7 +778,18 @@ def add_modeling_to_applications(request, format=None):
 def search_modeling(request, format=None):
     user = check_authorize(request)
     show_withdraw = (user and user.role == 'MOD')
+    get_draw = (user and user.role == 'USR')
     
+    response_drft = None
+    
+    if get_draw:
+        application = ApplicationsForModeling.objects.filter(
+            user_id=user.user_id,
+            status_application='DRFT'
+        ).first()
+        if application:
+            response_drft = application.application_id
+
     if show_withdraw:
         modeling_objects = TypesOfModeling.objects.filter(
             Q(modeling_status="WORK") |
@@ -819,7 +818,11 @@ def search_modeling(request, format=None):
         )
 
     serializer = TypesOfModelingSerializer(modeling_objects, many=True)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    response_data = {
+        'draft_id': response_drft,
+        'modeling_objects': serializer.data
+    }
+    return Response(response_data, status=status.HTTP_200_OK)
 
 
 @swagger_auto_schema(
