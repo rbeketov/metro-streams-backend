@@ -49,9 +49,7 @@ class DetailsOfModelingSerializer(serializers.ModelSerializer):
 class ApplicationsForModelingSerializer(serializers.ModelSerializer):
     user_first_name = serializers.CharField(source='user.first_name')
     user_second_name = serializers.CharField(source='user.second_name')
-    moderator_first_name = serializers.CharField(source='moderator.first_name', required=False)
-    moderator_second_name = serializers.CharField(source='moderator.second_name', required=False)
-    moderator_email = serializers.CharField(source='moderator.email', required=False)
+    
 
     date_application_create = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
     date_application_accept = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
@@ -63,9 +61,6 @@ class ApplicationsForModelingSerializer(serializers.ModelSerializer):
             'application_id',
             'user_first_name',
             'user_second_name',
-            'moderator_first_name',
-            'moderator_second_name',
-            'moderator_email',
             'date_application_create',
             'date_application_accept',
             'date_application_complete',

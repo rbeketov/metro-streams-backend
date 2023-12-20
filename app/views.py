@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 
+import requests
+import json
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -16,6 +18,10 @@ from app.models import TypesOfModeling
 from app.models import ModelingApplications
 from app.models import ApplicationsForModeling
 from app.models import Users
+
+
+from rest_framework.decorators import parser_classes
+from rest_framework.parsers import JSONParser
 
 
 from django.utils import timezone
@@ -276,6 +282,7 @@ def get_application(request, pk, format=None):
             'modelingapplications__modeling__modeling_id',
             'modelingapplications__modeling__modeling_name',
             'modelingapplications__modeling__modeling_description',
+            'modelingapplications__result_modeling',
             'people_per_minute',
             'time_interval',
             'date_application_create',
@@ -304,6 +311,7 @@ def get_application(request, pk, format=None):
                     'modeling_description': application['modelingapplications__modeling__modeling_description'],
                     'modeling_price': application['modelingapplications__modeling__modeling_price'],
                     'modeling_image_url': application['modelingapplications__modeling__modeling_image_url'],
+                    'modeling_result' : application['modelingapplications__result_modeling'],
                 }
                 modeling_data_list.append(modeling_data)
 
@@ -446,6 +454,9 @@ def user_set_status(request, pk, format=None):
 
         if new_status not in ['WORK', 'CANC']:
             return Response({"Ошибка": "Указан недопустимый статус"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if new_status == 'WORK' and ( not data['people_per_minute'] or not data['time_interval']):
+            return Response({"Ошибка": "Не переданы параметры моделирования"}, status=status.HTTP_400_BAD_REQUEST)
 
         valid_transitions = {
             'DRFT': ['WORK'],
@@ -462,11 +473,34 @@ def user_set_status(request, pk, format=None):
 
         if application.status_application != new_status:
             application.status_application = new_status
+
+            if new_status == 'WORK':
+                try:
+                    modelings = ModelingApplications.objects.filter(application=application)
+                    post_url = "http://localhost:8080/calculate-stream/"
+            
+                    calc_req_data = {
+                        "id": application.application_id,
+                        "time_interval": application.time_interval,
+                        "people_per_minute": application.people_per_minute,
+                        "modelings": [
+                            {"model_id": modeling.modeling.modeling_id, "load": modeling.modeling.load} for modeling in modelings
+                        ],
+                        "token": "Hg12HdEdEiid9-djEDegE",
+                    }
+        
+                   
+                    response_post = requests.post(post_url, json=calc_req_data)
+                    response_post.raise_for_status()
+                    application.date_application_accept = timezone.now()
+                except Exception as e:
+                    print(e)
+                    application.status_application = "CANC"
+
             application.save()
-            request_for_get_application = HttpRequest()
-            request_for_get_application.method = 'GET'
-            response = get_application(request_for_get_application, pk)
-            return Response(response.data, status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_200_OK)
+
+            
         else:
             return Response({"Ошибка": f"Заявка {pk} уже имеет {new_status}"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -474,6 +508,35 @@ def user_set_status(request, pk, format=None):
         return Response({"Ошибка": "Заявка не найдена"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"Ошибка": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@parser_classes([JSONParser])
+def write_modeling_result(request, format=None):
+    try:
+        data = request.data
+        if not data["token"] or data["token"] != "Hg12HdEdEiid9-djEDegE":
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        application_id = data["application_id"]
+        for result_data in data["results"]:
+            modeling_id = result_data["model_id"]
+
+            modeling = ModelingApplications.objects.filter(application=application_id, modeling=modeling_id)
+
+            if modeling:
+                modeling.update(result_modeling=result_data["output_load"])
+                application = ApplicationsForModeling.objects.get(pk=application_id)
+                application.status_application = "COMP"
+                application.date_application_complete = timezone.now()
+                application.save()
+
+        return Response(status=status.HTTP_200_OK)
+
+    except Exception as e:
+        print(e)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @swagger_auto_schema(
@@ -659,7 +722,6 @@ def update_applications(request, pk, format=None):
         # application = ApplicationsForModeling.objects.get(pk=pk)
         people_per_minute = request.data.get('people_per_minute')
         time_interval = request.data.get('time_interval')
-        print(request.data)
         application.people_per_minute = people_per_minute
         application.time_interval = time_interval
         application.save()

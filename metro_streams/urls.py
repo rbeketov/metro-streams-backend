@@ -61,6 +61,8 @@ urlpatterns = [
     path(r'api/applications/<int:pk>/user_delete/', views.user_delete_application, name='user_delete_application'),
     path(r'api/applications/<int:pk>/delete_modeling/', views.del_modeling_from_application, name='del_modeling_from_application'),
     path(r'api/applications/<int:pk>/update_result_modeling/', views.edit_result_modeling_in_application, name='edit_result_modeling_in_application'),
+    
+    path(r'api/applications/write_result_modeling/', views.write_modeling_result, name='write_result_modeling'),
 
     path(r'api/users/login/', views.login_view, name="login"),
     path(r'api/users/logout/', views.logout_view, name="logout"),
