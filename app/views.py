@@ -184,11 +184,11 @@ def logout_view(request):
 # support func
 def filter_applications(status_filter, date_start, date_end, user):
     if not user:
-        applications = ApplicationsForModeling.objects.exclude(status_application='DELE')
+        applications = ApplicationsForModeling.objects.exclude(status_application__in=['DELE', 'DRFT'])
     else:
         applications = ApplicationsForModeling.objects.filter(
             Q(user=user)
-        ).exclude(status_application='DELE')
+        ).exclude(status_application__in=['DELE', 'DRFT'])
 
     if status_filter:
         applications = applications.filter(Q(status_application=status_filter))
@@ -452,7 +452,7 @@ def user_set_status(request, pk, format=None):
         else:
             return Response({"Ошибка": "\'status\' отсутствует в теле запроса"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if new_status not in ['WORK', 'CANC']:
+        if new_status not in ['WORK']:
             return Response({"Ошибка": "Указан недопустимый статус"}, status=status.HTTP_400_BAD_REQUEST)
         
         if new_status == 'WORK' and ( not data['people_per_minute'] or not data['time_interval']):
@@ -460,7 +460,6 @@ def user_set_status(request, pk, format=None):
 
         valid_transitions = {
             'DRFT': ['WORK'],
-            'WORK': ['CANC'],
         }
 
         current_status = application.status_application
@@ -486,16 +485,13 @@ def user_set_status(request, pk, format=None):
                         "modelings": [
                             {"model_id": modeling.modeling.modeling_id, "load": modeling.modeling.load} for modeling in modelings
                         ],
-                        "token": "Hg12HdEdEiid9-djEDegE",
                     }
-        
-                   
+
                     response_post = requests.post(post_url, json=calc_req_data)
                     response_post.raise_for_status()
-                    application.date_application_accept = timezone.now()
+                    application.date_application_create = timezone.now()
                 except Exception as e:
                     print(e)
-                    application.status_application = "CANC"
 
             application.save()
             return Response(status=status.HTTP_200_OK)
@@ -510,7 +506,7 @@ def user_set_status(request, pk, format=None):
         return Response({"Ошибка": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(['PUT'])
 @parser_classes([JSONParser])
 def write_modeling_result(request, format=None):
     try:
@@ -526,10 +522,10 @@ def write_modeling_result(request, format=None):
 
             if modeling:
                 modeling.update(result_modeling=result_data["output_load"])
-                application = ApplicationsForModeling.objects.get(pk=application_id)
-                application.status_application = "COMP"
-                application.date_application_complete = timezone.now()
-                application.save()
+
+        application = ApplicationsForModeling.objects.get(pk=application_id)
+        application.date_application_accept = timezone.now()
+        application.save()
 
         return Response(status=status.HTTP_200_OK)
 

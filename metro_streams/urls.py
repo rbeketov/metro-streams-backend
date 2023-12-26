@@ -49,7 +49,7 @@ urlpatterns = [
     path(r'api/modelings/<int:pk>/edit/', views.edit_type_modeling , name='edit_type_modeling'),
     path(r'api/modelings/<int:pk>/withdraw/', views.withdraw_type_modeling, name='withdraw_type_modeling'),
     path(r'api/modelings/<int:pk>/recover/', views.recover_type_modeling, name='recover_type_modeling'),
-    path(r'api/modelings/<int:pk>/delete/', views.delete_type_modeling, name='recover_type_modeling'),
+    path(r'api/modelings/<int:pk>/delete/', views.delete_type_modeling, name='delete_type_modeling'),
     path(r'api/modelings/add/', views.add_modeling_to_applications, name='add_modeling_to_applications'),
 
 

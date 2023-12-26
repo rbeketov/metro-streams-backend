@@ -27,6 +27,7 @@ class TypesOfModelingSerializer(serializers.ModelSerializer):
             'modeling_name',
             'modeling_price',
             'modeling_image_url',
+            'modeling_status',
         ]
 
     def get_modeling_image(self, obj):
