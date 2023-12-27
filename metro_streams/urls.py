@@ -68,6 +68,8 @@ urlpatterns = [
     path(r'api/users/logout/', views.logout_view, name="logout"),
     path(r'api/users/registration/', views.registration, name='registration'),
 
+    path(r'api/users/check_moderator/', views.chek_moderator, name="check_moderator"), # endpoint for nginx
+
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('admin/', admin.site.urls),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),

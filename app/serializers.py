@@ -44,6 +44,7 @@ class DetailsOfModelingSerializer(serializers.ModelSerializer):
             'modeling_description',
             'modeling_price',
             'modeling_image_url',
+            'load',
         ]
 
 

@@ -44,9 +44,6 @@ from app.redis_view import (
     delete_value
 )
 
-USER_ID = 5
-MODERATOR_ID = 6
-
 
 def check_authorize(request):
     response = login_view_get(request._request)
@@ -119,8 +116,9 @@ def registration(request, format=None):
 )
 @api_view(['POST'])
 def login_view(request, format=None):
+    print("HERE")
     existing_session = request.COOKIES.get('session_key')
-    # print(existing_session)
+    print(existing_session)
     if existing_session and get_value(existing_session):
         return Response({'user_id': get_value(existing_session)})
 
@@ -149,6 +147,14 @@ def login_view(request, format=None):
 
     return Response(status=status.HTTP_401_UNAUTHORIZED)
 
+
+
+@api_view(['GET'])
+def chek_moderator(request, format=None):
+    user = check_authorize(request)
+    if not user or user.role != 'MOD':
+        return Response(status=status.HTTP_403_FORBIDDEN)
+    return Response(status=status.HTTP_200_OK)
 
 
 def login_view_get(request):
@@ -404,11 +410,10 @@ def moderator_set_status_application(request, pk, format=None):
 
         if application.status_application != new_status:
             application.status_application = new_status
+            if new_status == 'COMP':
+                application.date_application_complete = timezone.now()
             application.save()
-            request_for_get_application = HttpRequest()
-            request_for_get_application.method = 'GET'
-            response = get_application(request_for_get_application, pk)
-            return Response(response.data, status=status.HTTP_200_OK)
+            return Response( status=status.HTTP_200_OK)
         else:
             return Response({"Ошибка": f"Заявка {pk} уже имеет {new_status}"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -440,7 +445,7 @@ def moderator_set_status_application(request, pk, format=None):
 @api_view(['PUT'])
 def user_set_status(request, pk, format=None):
     user = check_authorize(request)
-    if not user or user.role != 'USR':
+    if not user: # or user.role != 'USR':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
@@ -557,7 +562,7 @@ def write_modeling_result(request, format=None):
 @api_view(['DELETE'])
 def user_delete_application(request, pk, format=None):
     user = check_authorize(request)
-    if not user or user.role != 'USR':
+    if not user: # or user.role != 'USR':
         print("a?")
         return Response(status=status.HTTP_403_FORBIDDEN)
 
@@ -603,7 +608,7 @@ def user_delete_application(request, pk, format=None):
 @api_view(['DELETE'])
 def del_modeling_from_application(request, pk, format=None):
     user = check_authorize(request)
-    if not user or user.role != 'USR':
+    if not user: #or user.role != 'USR':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     
@@ -704,7 +709,7 @@ def edit_result_modeling_in_application(request, pk, format=None):
 @api_view(['PUT'])
 def update_applications(request, pk, format=None):
     user = check_authorize(request)
-    if not user or user.role != 'USR':
+    if not user: # or user.role != 'USR':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     application = ApplicationsForModeling.objects.filter(
@@ -752,7 +757,7 @@ def update_applications(request, pk, format=None):
 @api_view(['POST'])
 def add_modeling_to_applications(request, format=None):
     user = check_authorize(request)
-    if not user or user.role != 'USR':
+    if not user: # or user.role != 'USR':
         return Response(status=status.HTTP_403_FORBIDDEN)
 
     try:
@@ -836,7 +841,7 @@ def add_modeling_to_applications(request, format=None):
 def search_modeling(request, format=None):
     user = check_authorize(request)
     show_withdraw = (user and user.role == 'MOD')
-    get_draw = (user and user.role == 'USR')
+    get_draw = (user) #and user.role == 'USR')
     
     response_drft = None
     
@@ -995,7 +1000,7 @@ def delete_type_modeling(request, pk, format=None):
             'modeling_name': openapi.Schema(type=openapi.TYPE_STRING, description="Новое название моделирования"),
             'modeling_description': openapi.Schema(type=openapi.TYPE_STRING, description="Новое описание моделирования"),
             'modeling_price': openapi.Schema(type=openapi.TYPE_NUMBER, description="Новая цена моделирования"),
-            'image': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_BINARY, description="The new modeling image data"),
+            'modeling_image_url': openapi.Schema(type=openapi.TYPE_STRING, description="URL до minio"),
             'load': openapi.Schema(type=openapi.TYPE_INTEGER, description="Новое значение нагрузки моделирования"),
         },
     ),
@@ -1014,27 +1019,16 @@ def edit_type_modeling(request, pk, format=None):
     modeling_object = get_object_or_404(TypesOfModeling, pk=pk)
     try:
         data = request.data
+        print(data)
 
         modeling_object.modeling_name = data.get('modeling_name', modeling_object.modeling_name)
         modeling_object.modeling_description = data.get('modeling_description', modeling_object.modeling_description)
         modeling_object.modeling_price = data.get('modeling_price', modeling_object.modeling_price)
+        modeling_object.modeling_image_url = data.get('modeling_image_url', modeling_object.modeling_image_url)
         modeling_object.load = data.get('load', modeling_object.load)
-
-        if 'image' in data:
-            old_image_path = modeling_object.modeling_image_url
-            delete_image_from_s3(old_image_path)
-            
-            new_image_path = modeling_object.modeling_name + '.jpg'
-            image_data = data['image']
-            upload_image_to_s3(image_data, new_image_path, 'image/jpeg')
-            modeling_object.modeling_image_url = new_image_path
        
         modeling_object.save()
-
-        modeling_object.refresh_from_db()
-        serializer = TypesOfModelingSerializer(modeling_object)
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_200_OK)
 
     except Exception as e:
         return Response(status=status.HTTP_400_BAD_REQUEST)
@@ -1072,27 +1066,20 @@ def create_type_modeling(request, format=None):
         modeling_name = data.get('modeling_name')
         modeling_description = data.get('modeling_description')
         modeling_price = data.get('modeling_price')
-        image_data = data.get('image')
+        modeling_image_url = data.get('modeling_image_url')
         load = data.get('load')
-
-        modeling_name_for_path = slugify(modeling_name.split(' ', 1)[1])
-        image_path = modeling_name_for_path + '.jpg'
-
-        upload_image_to_s3(image_data, image_path, 'image/jpeg')
 
         new_modeling_object = TypesOfModeling(
             modeling_name=modeling_name,
             modeling_description=modeling_description,
             modeling_price=modeling_price,
-            modeling_image_url=image_path,
-            load=load
+            modeling_image_url=modeling_image_url,
+            load=load,
+            modeling_status='WORK',
         )
 
         new_modeling_object.save()
 
-        created_modeling_object = TypesOfModeling.objects.get(pk=new_modeling_object.pk)
-        serializer = TypesOfModelingSerializer(created_modeling_object)
-
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response(status=status.HTTP_400_BAD_REQUEST)
