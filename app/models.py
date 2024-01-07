@@ -23,14 +23,16 @@ class ApplicationsForModeling(models.Model):
 
 
 class ModelingApplications(models.Model):
-    modeling = models.OneToOneField('TypesOfModeling', models.DO_NOTHING, primary_key=True)  # The composite primary key (modeling_id, application_id) found, that is not supported. The first column is selected.
+    modeling = models.OneToOneField('TypesOfModeling', models.DO_NOTHING, primary_key=True)
     application = models.ForeignKey(ApplicationsForModeling, models.DO_NOTHING)
     result_modeling = models.DecimalField(max_digits=30, decimal_places=2, blank=True, null=True)
 
     class Meta:
         managed = False
         db_table = 'modeling_applications'
-        unique_together = (('modeling', 'application'),)
+        constraints = [
+            models.UniqueConstraint(fields=['modeling', 'application'], name='unique_modeling_application')
+        ]
 
 
 class TypesOfModeling(models.Model):

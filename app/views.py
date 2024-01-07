@@ -671,17 +671,14 @@ def edit_result_modeling_in_application(request, pk, format=None):
         modeling_id = request.data.get('modeling_id')
         new_result = request.data.get('new_result')
 
-        modeling_application = ModelingApplications.objects.filter(application_id=pk, modeling_id=modeling_id).first()
+        ModelingApplications.objects.filter(application=pk, modeling=modeling_id).update(result_modeling=new_result)
+        return Response(status=status.HTTP_200_OK)
 
-        if modeling_application:
-            modeling_application.result_modeling = new_result
-            modeling_application.save()
-            return Response("Успешно", status=status.HTTP_200_OK)
-        else:
-            return Response("Не найдено", status=status.HTTP_404_NOT_FOUND)
-
+    except ModelingApplications.DoesNotExist:
+        return Response("Запись не найдена", status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @swagger_auto_schema(
