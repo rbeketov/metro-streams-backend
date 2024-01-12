@@ -37,9 +37,6 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
-# router.register(r'api/users/registration', views.UserRegistrationViewSet, basename='user')
-
-
 urlpatterns = [
     path('', include(router.urls)),
     
